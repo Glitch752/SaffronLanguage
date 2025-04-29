@@ -1,6 +1,7 @@
 use std::{collections::HashMap, iter::Peekable, str::Chars, sync::LazyLock};
 
 #[derive(Debug)]
+#[derive(Clone)]
 pub enum Token {
     // keywords
     ImportKeyword, // import
@@ -25,7 +26,6 @@ pub enum Token {
     MultiplyOperator, // *
     DivideOperator, // /
     ModuloOperator, // %
-    RangeOperator, // ..
     AssignmentOperator, // =
     
     Semicolon, // ;
@@ -77,7 +77,17 @@ static SYMBOLS: LazyLock<HashMap<&str, Token>> = LazyLock::new(|| {
     symbols.insert("*", Token::MultiplyOperator);
     symbols.insert("/", Token::DivideOperator);
     symbols.insert("%", Token::ModuloOperator);
-    symbols.insert("..", Token::RangeOperator);
+    symbols.insert("=", Token::AssignmentOperator);
+
+    symbols.insert("==", Token::EqualOperator);
+    symbols.insert("!=", Token::NotEqualOperator);
+    
+    symbols.insert(";", Token::Semicolon); // ;
+    symbols.insert(",", Token::Comma); // ,
+    symbols.insert(".", Token::Dot); // .
+    symbols.insert(":", Token::Colon); // :
+    symbols.insert("->", Token::Arrow); // ->
+    symbols.insert("|>", Token::Pipeline); // |>
     
     symbols
 });
@@ -96,7 +106,7 @@ impl Tokenizer {
     }
 
     pub fn tokenize(&mut self) -> Result<Vec<Token>, String> {
-        let mut tokens = Vec::<Token>::new();
+        let mut tokens: Vec<Token> = Vec::<Token>::new();
         let input = self.input.clone();
         let mut chars = input.chars().peekable();
 
@@ -120,20 +130,58 @@ impl Tokenizer {
                     }
 
                     if let Some(tok) = KEYWORDS.get(identifier.as_str()) {
-                        
+                        let token: Token = tok.clone();
+                        tokens.push(token);
                     }
                 },
 
-                Some(c) if c.is_numeric() => {
+                Some(c) if c.is_numeric() || c == '.' => {
+                    let mut identifier = String::new();
+                    identifier.push(c);
 
+                    while let Some(&next_char) = chars.peek() {
+                        if next_char.is_numeric() || next_char == '.' {
+                            identifier.push(chars.next().unwrap());
+                        } else {
+                            break;
+                        }
+                    }
+
+                    let id_string: &str = identifier.as_str();
+
+                    if id_string.contains('.') {
+                        // float
+                        let value: f64 = id_string.parse::<f64>().expect("Non-valid float literal.");
+                        
+                        tokens.push(Token::FloatValue(value));
+                    } else {
+                        // int
+                        let value: i64 = id_string.parse::<i64>().expect("Non-valid integer literal.");
+
+                        tokens.push(Token::IntegerValue(value));
+                    }
                 },
 
                 Some(c) => {
+                    let mut identifier = String::new();
+                    identifier.push(c);
 
+                    while let Some(&next_char) = chars.peek() {
+                        if !next_char.is_alphanumeric() {
+                            identifier.push(chars.next().unwrap());
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if let Some(tok) = SYMBOLS.get(identifier.as_str()) {
+                        let token: Token = tok.clone();
+                        tokens.push(token);
+                    }
                 }
             }
         }
 
-        Ok(vec![])
+        Ok(tokens)
     }
 }

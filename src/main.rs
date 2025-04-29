@@ -12,15 +12,15 @@ struct Args {
 }
 
 fn main() {
-    let args = Args::parse();
+    let args: Args = Args::parse();
 
     // Read the input file
-    let input = fs::read_to_string(args.input).expect("Failed to read input file.");
+    let input: String = fs::read_to_string(args.input).expect("Failed to read input file.");
 
-    let mut lex = tokenizer::Tokenizer::new(input);
+    let mut lex: tokenizer::Tokenizer = tokenizer::Tokenizer::new(input);
 
     // Split the input into tokens
-    let tokens = match lex.tokenize() {
+    let tokens: Vec<tokenizer::Token> = match lex.tokenize() {
         Ok(tokens) => tokens,
         Err(e) => {
             eprintln!("Error: {}", e);
@@ -32,4 +32,6 @@ fn main() {
     for token in tokens {
         println!("{:?}", token);
     }
+
+    println!("Done.");
 }

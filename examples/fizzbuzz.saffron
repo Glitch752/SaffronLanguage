@@ -2,8 +2,7 @@
 import std.io.stdout;
 
 func main() -> i32 {
-    // 1..100 is a range from 1 to 100
-    loop(i : 1..100) {
+    loop(i : std.range(1, 100)) {
         if(i % 15 == 0) stdout.println("FizzBuzz");
         else if(i % 3 == 0) {
             stdout.println("Fizz");
