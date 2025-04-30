@@ -29,8 +29,13 @@ fn main() {
     };
 
     // Print the tokens
-    for token in tokens {
+    for token in tokens.clone() {
         println!("{:?}", token);
+    }
+
+    // Reverse format the tokens
+    for token in tokens {
+        print!("{} ", token.reverse_format());
     }
 
     println!("Done.");
