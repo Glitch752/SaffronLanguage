@@ -2,7 +2,10 @@
 import std.io.stdout;
 
 func main() -> i32 {
-    loop(i : std.range(1, 100)) {
+    const x: int = 5;
+    let y: int = 10;
+
+    loop(const i : std.range(1, 100)) {
         if(i % 15 == 0) stdout.println("FizzBuzz");
         else if(i % 3 == 0) {
             stdout.println("Fizz");

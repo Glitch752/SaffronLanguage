@@ -1,7 +1,14 @@
-use std::{collections::HashMap, iter::Peekable, str::Chars, sync::LazyLock};
+use std::{collections::{HashMap, VecDeque}, sync::LazyLock};
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Token {
+pub struct Token {
+    pub token_type: TokenType,
+    pub line: usize,
+    pub column: usize
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum TokenType {
     // keywords
     ImportKeyword, // import
     FunctionKeyword, // func
@@ -9,6 +16,8 @@ pub enum Token {
     IfKeyword, // if
     ElseKeyword, // else
     LoopKeyword, // loop
+    ConstKeyword, // const
+    LetKeyword, // let
     
     // values
     TrueValue, // true
@@ -28,6 +37,8 @@ pub enum Token {
     DivideOperator, // /
     ModuloOperator, // %
     AssignmentOperator, // =
+
+    // TODO: Bitwise operators
     
     Semicolon, // ;
     Comma, // ,
@@ -54,25 +65,28 @@ pub enum Token {
     CloseAngleBracket // >
 }
 
-impl Token {
+impl TokenType {
     pub fn reverse_format(&self) -> String {
         match self {
-            Token::ImportKeyword => "import".to_string(),
-            Token::FunctionKeyword => "func".to_string(),
-            Token::ReturnKeyword => "return".to_string(),
-            Token::IfKeyword => "if".to_string(),
-            Token::ElseKeyword => "else".to_string(),
-            Token::LoopKeyword => "loop".to_string(),
+            TokenType::ImportKeyword => "import".to_string(),
+            TokenType::FunctionKeyword => "func".to_string(),
+            TokenType::ReturnKeyword => "return".to_string(),
+            TokenType::IfKeyword => "if".to_string(),
+            TokenType::ElseKeyword => "else".to_string(),
+            TokenType::LoopKeyword => "loop".to_string(),
 
-            Token::TrueValue => "true".to_string(),
-            Token::FalseValue => "false".to_string(),
+            TokenType::TrueValue => "true".to_string(),
+            TokenType::FalseValue => "false".to_string(),
 
-            Token::StringLiteral(value) => format!("\"{}\"", value),
-            Token::IntegerLiteral(value) => value.to_string(),
-            Token::FloatLiteral(value) => value.to_string(),
-            Token::CharLiteral(value) => format!("'{}'", value),
+            TokenType::ConstKeyword => "const".to_string(),
+            TokenType::LetKeyword => "let".to_string(),
 
-            Token::Identifier(value) => value.clone(),
+            TokenType::StringLiteral(value) => format!("\"{}\"", value),
+            TokenType::IntegerLiteral(value) => value.to_string(),
+            TokenType::FloatLiteral(value) => value.to_string(),
+            TokenType::CharLiteral(value) => format!("'{}'", value),
+
+            TokenType::Identifier(value) => value.clone(),
 
             _ => {
                 if let Some(symbol) = SYMBOLS.iter().find(|(_, v)| v == &self) {
@@ -87,78 +101,121 @@ impl Token {
     }
 }
 
-static KEYWORDS: LazyLock<HashMap<&str, Token>> = LazyLock::new(|| {
+static KEYWORDS: LazyLock<HashMap<&str, TokenType>> = LazyLock::new(|| {
     let mut keywords = HashMap::new();
 
-    keywords.insert("import", Token::ImportKeyword);
-    keywords.insert("func", Token::FunctionKeyword);
-    keywords.insert("return", Token::ReturnKeyword);
-    keywords.insert("if", Token::IfKeyword);
-    keywords.insert("else", Token::ElseKeyword);
-    keywords.insert("loop", Token::LoopKeyword);
+    keywords.insert("import", TokenType::ImportKeyword);
+    keywords.insert("func", TokenType::FunctionKeyword);
+    keywords.insert("return", TokenType::ReturnKeyword);
+    keywords.insert("if", TokenType::IfKeyword);
+    keywords.insert("else", TokenType::ElseKeyword);
+    keywords.insert("loop", TokenType::LoopKeyword);
 
-    keywords.insert("true", Token::TrueValue);
-    keywords.insert("false", Token::FalseValue);
+    keywords.insert("true", TokenType::TrueValue);
+    keywords.insert("false", TokenType::FalseValue);
+
+    keywords.insert("const", TokenType::ConstKeyword);
+    keywords.insert("let", TokenType::LetKeyword);
     
     keywords
 });
 
-static SYMBOLS: LazyLock<HashMap<&str, Token>> = LazyLock::new(|| {
+static SYMBOLS: LazyLock<HashMap<&str, TokenType>> = LazyLock::new(|| {
     let mut symbols = HashMap::new();
 
-    symbols.insert("+", Token::AddOperator);
-    symbols.insert("-", Token::SubtractOperator);
-    symbols.insert("*", Token::MultiplyOperator);
-    symbols.insert("/", Token::DivideOperator);
-    symbols.insert("%", Token::ModuloOperator);
-    symbols.insert("=", Token::AssignmentOperator);
+    symbols.insert("+", TokenType::AddOperator);
+    symbols.insert("-", TokenType::SubtractOperator);
+    symbols.insert("*", TokenType::MultiplyOperator);
+    symbols.insert("/", TokenType::DivideOperator);
+    symbols.insert("%", TokenType::ModuloOperator);
+    symbols.insert("=", TokenType::AssignmentOperator);
 
-    symbols.insert(">=", Token::GreaterThanEqualOperator);
-    symbols.insert("<=", Token::LessThanEqualOperator);
-    symbols.insert("==", Token::EqualOperator);
-    symbols.insert("!=", Token::NotEqualOperator);
+    symbols.insert(">=", TokenType::GreaterThanEqualOperator);
+    symbols.insert("<=", TokenType::LessThanEqualOperator);
+    symbols.insert("==", TokenType::EqualOperator);
+    symbols.insert("!=", TokenType::NotEqualOperator);
     
-    symbols.insert(";", Token::Semicolon);
-    symbols.insert(",", Token::Comma);
-    symbols.insert(".", Token::Dot);
-    symbols.insert(":", Token::Colon);
-    symbols.insert("->", Token::Arrow);
-    symbols.insert("|>", Token::Pipeline);
+    symbols.insert(";", TokenType::Semicolon);
+    symbols.insert(",", TokenType::Comma);
+    symbols.insert(".", TokenType::Dot);
+    symbols.insert(":", TokenType::Colon);
+    symbols.insert("->", TokenType::Arrow);
+    symbols.insert("|>", TokenType::Pipeline);
 
-    symbols.insert("(", Token::OpenParenthesis);
-    symbols.insert(")", Token::CloseParenthesis);
-    symbols.insert("{", Token::OpenCurlyBracket);
-    symbols.insert("}", Token::CloseCurlyBracket);
-    symbols.insert("[", Token::OpenSquareBracket);
-    symbols.insert("]", Token::CloseSquareBracket);
-    symbols.insert("<", Token::OpenAngleBracket);
-    symbols.insert(">", Token::CloseAngleBracket);
+    symbols.insert("(", TokenType::OpenParenthesis);
+    symbols.insert(")", TokenType::CloseParenthesis);
+    symbols.insert("{", TokenType::OpenCurlyBracket);
+    symbols.insert("}", TokenType::CloseCurlyBracket);
+    symbols.insert("[", TokenType::OpenSquareBracket);
+    symbols.insert("]", TokenType::CloseSquareBracket);
+    symbols.insert("<", TokenType::OpenAngleBracket);
+    symbols.insert(">", TokenType::CloseAngleBracket);
     
     symbols
 });
 
 pub struct Tokenizer {
-    input: String
+    characters: VecDeque<char>,
+    current_line: usize,
+    current_column: usize,
+
+    tokens: Vec<Token>
 }
 
 impl Tokenizer {
     pub fn new(input: String) -> Self {
-        Tokenizer { input }
+        let characters = input.chars().collect();
+        Tokenizer {
+            characters,
+            current_line: 1,
+            current_column: 1,
+            tokens: Vec::<Token>::new()
+        }
     }
 
-    fn skip_whitespace(&mut self, chars: &mut Peekable<Chars>) {
-        while chars.next_if(|c| c.is_whitespace()).is_some() {}
+    fn next_if<F>(&mut self, predicate: F) -> Option<char> where F: Fn(char) -> bool {
+        if let Some(&c) = self.peek() {
+            if predicate(c) {
+                return self.next();
+            }
+        }
+        None
     }
 
-    pub fn tokenize(&mut self) -> Result<Vec<Token>, String> {
-        let mut tokens: Vec<Token> = Vec::<Token>::new();
-        let input = self.input.clone();
-        let mut chars = input.chars().peekable();
+    fn peek(&self) -> Option<&char> {
+        self.characters.get(0)
+    }
 
-        while chars.peek().is_some() {
-            self.skip_whitespace(&mut chars);
+    fn next(&mut self) -> Option<char> {
+        if let Some(c) = self.characters.pop_front() {
+            self.current_column += 1;
+            if c == '\n' {
+                self.current_line += 1;
+                self.current_column = 1;
+            }
 
-            match chars.next() {
+            return Some(c);
+        }
+        None
+    }
+
+    fn skip_whitespace(&mut self) {
+        while self.next_if(|c| c.is_whitespace()).is_some() {}
+    }
+
+    fn add_token(&mut self, token_type: TokenType) {
+        self.tokens.push(Token {
+            token_type,
+            line: self.current_line,
+            column: self.current_column
+        });
+    }
+
+    pub fn tokenize(&mut self) -> Result<&Vec<Token>, String> {
+        while self.peek().is_some() {
+            self.skip_whitespace();
+
+            match self.next() {
                 None => break,
 
                 // Keywords and identifiers
@@ -166,19 +223,19 @@ impl Tokenizer {
                     let mut identifier = String::new();
                     identifier.push(c);
 
-                    while let Some(&next_char) = chars.peek() {
+                    while let Some(&next_char) = self.peek() {
                         if next_char.is_alphanumeric() || next_char == '_' {
-                            identifier.push(chars.next().unwrap());
+                            identifier.push(self.next().unwrap());
                         } else {
                             break;
                         }
                     }
 
                     if let Some(tok) = KEYWORDS.get(identifier.as_str()) {
-                        let token: Token = tok.clone();
-                        tokens.push(token);
+                        let token: TokenType = tok.clone();
+                        self.add_token(token);
                     } else {
-                        tokens.push(Token::Identifier(identifier));
+                        self.add_token(TokenType::Identifier(identifier));
                     }
                 },
 
@@ -186,9 +243,9 @@ impl Tokenizer {
                     let mut number = String::new();
                     number.push(c);
 
-                    while let Some(&next_char) = chars.peek() {
+                    while let Some(&next_char) = self.peek() {
                         if next_char.is_numeric() || next_char == '.' {
-                            number.push(chars.next().unwrap());
+                            number.push(self.next().unwrap());
                         } else {
                             break;
                         }
@@ -196,13 +253,13 @@ impl Tokenizer {
 
                     if number.contains('.') {
                         if let Ok(value) = number.parse::<f64>() {
-                            tokens.push(Token::FloatLiteral(value));
+                            self.add_token(TokenType::FloatLiteral(value));
                         } else {
                             return Err(format!("Invalid float value: {}", number));
                         }
                     } else {
                         if let Ok(value) = number.parse::<i64>() {
-                            tokens.push(Token::IntegerLiteral(value));
+                            self.add_token(TokenType::IntegerLiteral(value));
                         } else {
                             return Err(format!("Invalid integer value: {}", number));
                         }
@@ -210,121 +267,106 @@ impl Tokenizer {
                 },
 
                 // Floats starting with a dot
-                Some('.') if chars.peek().is_some_and(|c| c.is_numeric()) => {
+                Some('.') if self.peek().is_some_and(|c| c.is_numeric()) => {
                     let mut number = String::new();
                     number.push('.');
 
-                    while let Some(&next_char) = chars.peek() {
+                    while let Some(&next_char) = self.peek() {
                         if next_char.is_numeric() {
-                            number.push(chars.next().unwrap());
+                            number.push(self.next().unwrap());
                         } else {
                             break;
                         }
                     }
 
                     if let Ok(value) = number.parse::<f64>() {
-                        tokens.push(Token::FloatLiteral(value));
+                        self.add_token(TokenType::FloatLiteral(value));
                     } else {
                         return Err(format!("Invalid float value: {}", number));
                     }
                 },
 
                 // Handle comments
-                Some('/') if chars.peek().is_some_and(|&c| c == '/') => {
+                Some('/') if self.peek().is_some_and(|&c| c == '/') => {
                     // Skip the rest of the line
-                    while chars.next_if(|&c| c != '\n').is_some() {}
+                    while self.next_if(|c| c != '\n').is_some() {}
                 },
-                Some('/') if chars.peek().is_some_and(|&c| c == '*') => {
+                Some('/') if self.peek().is_some_and(|&c| c == '*') => {
                     // Skip block comments
-                    chars.next(); // Consume the '*'
-                    while let Some(&c) = chars.peek() {
+                    self.next(); // Consume the '*'
+                    while let Some(&c) = self.peek() {
                         if c == '*' {
-                            chars.next(); // Consume the '*'
-                            if chars.peek() == Some(&'/') {
-                                chars.next(); // Consume the '/'
+                            self.next(); // Consume the '*'
+                            if self.peek() == Some(&'/') {
+                                self.next(); // Consume the '/'
                                 break;
                             }
                         } else {
-                            chars.next(); // Consume the character
+                            self.next(); // Consume the character
                         }
                     }
                 },
 
                 // Strings
                 Some('"') => {
+                    // TODO: Escape sequences
                     let mut string_value = String::new();
-                    while let Some(&c) = chars.peek() {
+                    while let Some(&c) = self.peek() {
                         if c == '"' {
-                            chars.next(); // Consume the closing quote
+                            self.next(); // Consume the closing quote
                             break;
                         } else if c == '\\' {
-                            chars.next(); // Consume the backslash
-                            if let Some(&escaped_char) = chars.peek() {
+                            self.next(); // Consume the backslash
+                            if let Some(&escaped_char) = self.peek() {
                                 string_value.push(escaped_char);
-                                chars.next(); // Consume the escaped character
+                                self.next(); // Consume the escaped character
                             }
                         } else {
                             string_value.push(c);
-                            chars.next(); // Consume the character
+                            self.next(); // Consume the character
                         }
                     }
-                    tokens.push(Token::StringLiteral(string_value));
+                    self.add_token(TokenType::StringLiteral(string_value));
                 },
 
+                // Handle character literals
+                Some('\'') => {
+                    if let Some(&next_char) = self.peek() {
+                        if next_char != '\'' {
+                            self.add_token(TokenType::CharLiteral(next_char));
+                            self.next(); // Consume the character
+                        } else {
+                            return Err("Empty character literal".to_string());
+                        }
+                    }
+                    self.next(); // Consume the closing quote
+                }
+
+                // Handle symbols and operators
                 Some(c) => {
-                    if let Some(&next_char) = chars.peek() {
+                    if let Some(&next_char) = self.peek() {
                         // Check for 2-character symbols
                         let two_char_symbol = format!("{}{}", c, next_char);
                         if let Some(tok) = SYMBOLS.get(two_char_symbol.as_str()) {
-                            let token: Token = tok.clone();
-                            tokens.push(token);
-                            chars.next(); // Consume the second character
+                            let token: TokenType = tok.clone();
+                            self.add_token(token);
+                            self.next(); // Consume the second character
                             continue;
                         }
                     }
                     
                     if let Some(tok) = SYMBOLS.get(c.to_string().as_str()) {
                         // Check for single-character symbols
-                        let token: Token = tok.clone();
-                        tokens.push(token);
+                        let token: TokenType = tok.clone();
+                        self.add_token(token);
                         continue;
                     }
                     
-                    if c == '\'' {
-                        // Handle character literals
-                        if let Some(&next_char) = chars.peek() {
-                            if next_char != '\'' {
-                                tokens.push(Token::CharLiteral(next_char));
-                                chars.next(); // Consume the character
-                            } else {
-                                return Err("Empty character literal".to_string());
-                            }
-                        }
-                        chars.next(); // Consume the closing quote
-                        continue;
-                    }
-                    
-                    if c.is_alphanumeric() || c == '_' {
-                        let mut identifier = String::new();
-                        identifier.push(c);
-
-                        while let Some(&next_char) = chars.peek() {
-                            if next_char.is_alphanumeric() || next_char == '_' {
-                                identifier.push(chars.next().unwrap());
-                            } else {
-                                break;
-                            }
-                        }
-
-                        tokens.push(Token::Identifier(identifier));
-                        continue;
-                    }
-                    
-                    return Err(format!("Unexpected character: {}", c));
+                    return Err(format!("Unexpected character: '{}'", c));
                 }
             }
         }
 
-        Ok(tokens)
+        Ok(&self.tokens)
     }
 }

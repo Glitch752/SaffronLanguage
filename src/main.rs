@@ -3,6 +3,7 @@ use std::fs;
 use clap::{command, Parser};
 
 mod tokenizer;
+mod parser;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -20,7 +21,7 @@ fn main() {
     let mut lex: tokenizer::Tokenizer = tokenizer::Tokenizer::new(input);
 
     // Split the input into tokens
-    let tokens: Vec<tokenizer::Token> = match lex.tokenize() {
+    let tokens = match lex.tokenize() {
         Ok(tokens) => tokens,
         Err(e) => {
             eprintln!("Error: {}", e);
@@ -29,13 +30,13 @@ fn main() {
     };
 
     // Print the tokens
-    for token in tokens.clone() {
+    for token in tokens {
         println!("{:?}", token);
     }
 
     // Reverse format the tokens
     for token in tokens {
-        print!("{} ", token.reverse_format());
+        print!("{} ", token.token_type.reverse_format());
     }
 
     println!("Done.");
