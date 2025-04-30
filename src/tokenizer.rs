@@ -18,6 +18,8 @@ pub enum TokenType {
     LoopKeyword, // loop
     ConstKeyword, // const
     LetKeyword, // let
+    BreakKeyword, // break
+    ContinueKeyword, // continue
     
     // values
     TrueValue, // true
@@ -37,6 +39,10 @@ pub enum TokenType {
     DivideOperator, // /
     ModuloOperator, // %
     AssignmentOperator, // =
+
+    AndOperator, // &&
+    OrOperator, // ||
+    NotOperator, // !
 
     // TODO: Bitwise operators
     
@@ -74,6 +80,8 @@ impl TokenType {
             TokenType::IfKeyword => "if".to_string(),
             TokenType::ElseKeyword => "else".to_string(),
             TokenType::LoopKeyword => "loop".to_string(),
+            TokenType::BreakKeyword => "break".to_string(),
+            TokenType::ContinueKeyword => "continue".to_string(),
 
             TokenType::TrueValue => "true".to_string(),
             TokenType::FalseValue => "false".to_string(),
@@ -110,6 +118,8 @@ static KEYWORDS: LazyLock<HashMap<&str, TokenType>> = LazyLock::new(|| {
     keywords.insert("if", TokenType::IfKeyword);
     keywords.insert("else", TokenType::ElseKeyword);
     keywords.insert("loop", TokenType::LoopKeyword);
+    keywords.insert("break", TokenType::BreakKeyword);
+    keywords.insert("continue", TokenType::ContinueKeyword);
 
     keywords.insert("true", TokenType::TrueValue);
     keywords.insert("false", TokenType::FalseValue);
@@ -134,6 +144,10 @@ static SYMBOLS: LazyLock<HashMap<&str, TokenType>> = LazyLock::new(|| {
     symbols.insert("<=", TokenType::LessThanEqualOperator);
     symbols.insert("==", TokenType::EqualOperator);
     symbols.insert("!=", TokenType::NotEqualOperator);
+
+    symbols.insert("&&", TokenType::AndOperator);
+    symbols.insert("||", TokenType::OrOperator);
+    symbols.insert("!", TokenType::NotOperator);
     
     symbols.insert(";", TokenType::Semicolon);
     symbols.insert(",", TokenType::Comma);

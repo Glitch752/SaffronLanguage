@@ -29,15 +29,15 @@ fn main() {
         }
     };
 
-    // Print the tokens
-    for token in tokens {
-        println!("{:?}", token);
-    }
+    let mut parser: parser::Parser = parser::Parser::new(&tokens);
+    let program = match parser.parse_program() {
+        Ok(program) => program,
+        Err(e) => {
+            eprintln!("Error: {:?}", e);
+            return;
+        }
+    };
 
-    // Reverse format the tokens
-    for token in tokens {
-        print!("{} ", token.token_type.reverse_format());
-    }
-
-    println!("Done.");
+    // Print the parsed program
+    println!("\nParsed program: {:#?}", program);
 }
