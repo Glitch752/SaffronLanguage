@@ -1,5 +1,6 @@
 // Simple modules
 import std.io.stdout;
+import std;
 
 func main() -> i32 {
     const x: i32 = 5;
