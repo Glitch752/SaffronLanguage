@@ -65,7 +65,7 @@ macro_rules! parse_precedence_binary {
 macro_rules! parse_precedence_unary {
     ($self:ident, $next_level:ident, $( ($token_type:path, $operator:expr) ),+ $(,)?) => {
         {
-            let mut expr = $self.$next_level()?;
+            let mut expr: Option<Expression> = None;
             while !$self.is_eof() && let Some(operator) = match $self.peek().token_type.clone() {
                 $(
                     $token_type => Some($operator),
@@ -75,12 +75,16 @@ macro_rules! parse_precedence_unary {
                 $self.advance(); // Consume the operator
 
                 let right = Box::new($self.$next_level()?);
-                expr = Expression::UnaryOperation {
+                expr = Some(Expression::UnaryOperation {
                     operator,
                     operand: right
-                };
+                });
             }
-            Ok(expr)
+            if let Some(expr) = expr {
+                Ok(expr)
+            } else {
+                $self.$next_level()
+            }
         }
     };
 }
@@ -600,7 +604,7 @@ mod tests {
     #[test]
     fn test_associativity() {
         assert_eq!(parse!(r#"
-            1 + 2 * 3 - 4 / 5 % 6
+            1 + 2 * 3 - 4 / 5 % 6;
         "#, parse_expression), 
             Expression::BinaryOperation {
                 left: Box::new(Expression::BinaryOperation {
