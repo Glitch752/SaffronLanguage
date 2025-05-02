@@ -270,7 +270,7 @@ impl Interpreter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{parser::{ast::{BinaryOperator, Declaration, Expression, LoopStatement, Program, Statement, Type, UnaryOperator}, Parser}, tokenizer::Tokenizer};
+    use crate::{parser::{ast::{BinaryOperator, Declaration, Expression, Program, Statement, Type}, Parser}, tokenizer::Tokenizer};
 
     macro_rules! parse {
         ($input:expr, $parse_fn:ident) => {
@@ -313,10 +313,10 @@ mod tests {
 
     #[test]
     fn test_associativity() {
-        // let result = Interpreter::new().interpret_expression(&parse!(r#"
-        //     1 + 2 * 3 - 4 / 5 % 6
-        // "#, parse_expression));
+        let result = Interpreter::new().interpret_expression(&parse!(r#"
+            1 + 2 * 3 - 4 / 5 % 6
+        "#, parse_expression));
 
-        // assert_eq!(result, Ok(Value::Number(1.0 + 2.0 * 3.0 - 4.0 / 5.0 % 6.0)));
+        assert_eq!(result, Ok(Value::Number(1.0 + 2.0 * 3.0 - 4.0 / 5.0 % 6.0)));
     }
 }

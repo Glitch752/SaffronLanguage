@@ -3,6 +3,7 @@ use ast::{BinaryOperator, Declaration, Expression, FunctionParameter, LoopStatem
 use crate::tokenizer::{Token, TokenType};
 
 pub mod ast;
+pub mod ast_printer;
 
 #[derive(Debug, PartialEq)]
 pub enum ParseError {
@@ -160,6 +161,8 @@ impl<'a> Parser<'a> {
             };
             declarations.push(decl);
         }
+
+        debug_assert!(self.is_eof(), "Unexpected end of input");
 
         if !self.errors.is_empty() {
             for error in &self.errors {
