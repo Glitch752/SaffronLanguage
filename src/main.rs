@@ -5,7 +5,6 @@ use clap::{command, Parser};
 mod tokenizer;
 mod parser;
 mod interpreter;
-pub mod visitor;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
