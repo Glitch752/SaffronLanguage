@@ -3,16 +3,11 @@ import std.range;
 import std;
 
 func main() -> i32 {
-    continue;
-    break;
-
-    let i: i32 = 0;
-    const test: i32 = 10;
-
-    stdout("Test");
-
-    return;
-    return x + y * 3 == 1;
+    print("Test");
+    
+    loop(true) {
+        print("Test2" + "test");
+    }
 }
 
 // u8, u16, u32, u64, i8, i16, i32, i64, f32, f64, etc.

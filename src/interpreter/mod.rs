@@ -1,8 +1,26 @@
 use value::Value;
 
-use crate::parser::ast::{Declaration, Expression, Program, Statement};
+use crate::parser::ast::{BinaryOperator, Declaration, Expression, LoopStatement, Program, Statement, UnaryOperator};
 
 mod value;
+
+pub enum InterpreterControl {
+    Continue,
+    Break,
+    Return(Value),
+    RuntimeError(String)
+}
+
+pub type InterpreterResult<T = Value> = Result<T, InterpreterControl>;
+
+macro_rules! runtime_error {
+    ($msg:expr) => {
+        Err(InterpreterControl::RuntimeError($msg.to_string()))
+    };
+    ($fmt:expr, $($arg:tt)+) => {
+        Err(InterpreterControl::RuntimeError(format!($fmt, $($arg)+)))
+    };
+}
 
 pub struct Interpreter<'a> {
     program: &'a Program
@@ -14,7 +32,7 @@ impl<'a> Interpreter<'a> {
             program
         }
     }
-    pub fn run(&mut self) -> Result<(), String> {
+    pub fn run(&mut self) -> InterpreterResult<()> {
         // Initialize the interpreter state
 
         self.interpret_program(&self.program)?;
@@ -22,19 +40,19 @@ impl<'a> Interpreter<'a> {
         Ok(())
     }
 
-    fn interpret_program(&mut self, program: &Program) -> Result<(), String> {
+    fn interpret_program(&mut self, program: &Program) -> InterpreterResult<()> {
         for statement in &program.declarations {
             self.interpret_declaration(statement)?;
         }
         Ok(())
     }
-    fn interpret_declaration(&mut self, declaration: &Declaration) -> Result<(), String> {
+    fn interpret_declaration(&mut self, declaration: &Declaration) -> InterpreterResult<()> {
         match declaration {
             Declaration::Function { name, params, return_type, body } => {
                 // TODO: Functions
                 // TEMPORARY
                 if name == "main" {
-                    self.interpret_expression(body);
+                    self.interpret_expression(body)?;
                 }
             },
             Declaration::Import { path } => {
@@ -43,7 +61,7 @@ impl<'a> Interpreter<'a> {
         }
         Ok(())
     }
-    fn interpret_statement(&mut self, statement: &Statement) -> Result<(), String> {
+    fn interpret_statement(&mut self, statement: &Statement) -> InterpreterResult<()> {
         match statement {
             Statement::Expression { expression, result } => {
                 self.interpret_expression(expression)?;
@@ -51,12 +69,12 @@ impl<'a> Interpreter<'a> {
             },
             // TODO
             _ => {
-                return Err(format!("Unsupported statement: {:?}", statement));
+                return runtime_error!("Unsupported statement: {:?}", statement);
             }
         };
         Ok(())
     }
-    fn interpret_expression(&mut self, expression: &Expression) -> Result<Value, String> {
+    fn interpret_expression(&mut self, expression: &Expression) -> InterpreterResult {
         match expression {
             Expression::CharLiteral(c) => {
                 Ok(Value::Char(*c))
@@ -66,6 +84,9 @@ impl<'a> Interpreter<'a> {
             },
             Expression::NumberLiteral(n) => {
                 Ok(Value::Number(*n))
+            },
+            Expression::BooleanLiteral(b) => {
+                Ok(Value::Boolean(*b))
             },
 
             Expression::FunctionCall { callee, args } => {
@@ -79,13 +100,153 @@ impl<'a> Interpreter<'a> {
                         }
                         return Ok(Value::default());
                     } else {
-                        return Err(format!("Unknown function: {}", name));
+                        return runtime_error!("Unknown function: {}", name);
                     }
                 }
-                return Err(format!("Unsupported function call: {:?}", expression));
+                return runtime_error!("Unsupported function call: {:?}", expression);
             },
 
-            _ => todo!()
+            Expression::BinaryOperation { left, operator, right } => {
+                let left_value = self.interpret_expression(left)?;
+                let right_value = self.interpret_expression(right)?;
+                match (operator, left_value, right_value) {
+                    (BinaryOperator::Add, Value::Number(l), Value::Number(r)) => {
+                        Ok(Value::Number(l + r))
+                    },
+                    (BinaryOperator::Add, Value::String(l), Value::String(r)) => {
+                        Ok(Value::String(format!("{}{}", l, r)))
+                    },
+
+                    (BinaryOperator::Subtract, Value::Number(l), Value::Number(r)) => {
+                        Ok(Value::Number(l - r))
+                    },
+                    (BinaryOperator::Multiply, Value::Number(l), Value::Number(r)) => {
+                        Ok(Value::Number(l * r))
+                    },
+                    (BinaryOperator::Divide, Value::Number(l), Value::Number(r)) => {
+                        if r == 0.0 {
+                            return runtime_error!("Division by zero");
+                        }
+                        Ok(Value::Number(l / r))
+                    },
+                    (BinaryOperator::Modulus, Value::Number(l), Value::Number(r)) => {
+                        if r == 0.0 {
+                            return runtime_error!("Division by zero");
+                        }
+                        Ok(Value::Number(l % r))
+                    },
+                    (BinaryOperator::Equal, l, r) => {
+                        Ok(Value::Boolean(l == r))
+                    },
+                    (BinaryOperator::NotEqual, l, r) => {
+                        Ok(Value::Boolean(l != r))
+                    },
+
+                    (BinaryOperator::LessThan, Value::Number(l), Value::Number(r)) => {
+                        Ok(Value::Boolean(l < r))
+                    },
+                    (BinaryOperator::LessThanOrEqual, Value::Number(l), Value::Number(r)) => {
+                        Ok(Value::Boolean(l <= r))
+                    },
+                    (BinaryOperator::GreaterThan, Value::Number(l), Value::Number(r)) => {
+                        Ok(Value::Boolean(l > r))
+                    },
+                    (BinaryOperator::GreaterThanOrEqual, Value::Number(l), Value::Number(r)) => {
+                        Ok(Value::Boolean(l >= r))
+                    },
+                    
+                    (BinaryOperator::And, Value::Boolean(l), Value::Boolean(r)) => {
+                        Ok(Value::Boolean(l && r))
+                    },
+                    (BinaryOperator::Or, Value::Boolean(l), Value::Boolean(r)) => {
+                        Ok(Value::Boolean(l || r))
+                    },
+
+                    (_, l, r) => {
+                        return runtime_error!("Unsupported binary operation: {} {} {}", l, operator, r);
+                    }
+                }
+            },
+
+            Expression::UnaryOperation { operator, operand } => {
+                let operand_value = self.interpret_expression(operand)?;
+                match (operator, operand_value) {
+                    (UnaryOperator::Negate, Value::Number(n)) => {
+                        Ok(Value::Number(-n))
+                    },
+                    (UnaryOperator::Not, Value::Boolean(b)) => {
+                        Ok(Value::Boolean(!b))
+                    },
+                    (_, operand_value) => {
+                        return runtime_error!("Unsupported unary operation: {} {}", operator, operand_value);
+                    }
+                }
+            },
+
+            Expression::Block(statements) => {
+                for statement in statements {
+                    if let Statement::Expression { result: true, expression } = statement {
+                        return Ok(self.interpret_expression(expression)?);
+                    }
+                    _ = self.interpret_statement(statement)?;
+                }
+                Ok(Value::default())
+            },
+
+            Expression::Loop(LoopStatement::Infinite { body }) => {
+                loop {
+                    match self.interpret_expression(body) {
+                        Err(InterpreterControl::Break) => {
+                            return Ok(Value::default());
+                        },
+                        Err(InterpreterControl::Continue) => {
+                            continue;
+                        },
+
+                        Err(e) => {
+                            return Err(e);
+                        },
+                        Ok(_) => (),
+                    };
+                }
+            },
+            Expression::Loop(LoopStatement::While { condition, body }) => {
+                loop {
+                    let condition_value = self.interpret_expression(condition)?;
+                    if let Value::Boolean(false) = condition_value {
+                        return Ok(Value::default());
+                    }
+                    match self.interpret_expression(body) {
+                        Err(InterpreterControl::Break) => {
+                            return Ok(Value::default());
+                        },
+                        Err(InterpreterControl::Continue) => {
+                            continue;
+                        },
+
+                        Err(e) => {
+                            return Err(e);
+                        },
+                        _ => (),
+                    };
+                }
+            },
+            Expression::Loop(LoopStatement::Iterator { mutability, iterator, iterable, body }) => {
+                todo!()
+            },
+
+            Expression::If { condition, then_branch, else_branch } => {
+                let condition_value = self.interpret_expression(condition)?;
+                if let Value::Boolean(true) = condition_value {
+                    return self.interpret_expression(then_branch);
+                } else if let Some(else_branch) = else_branch {
+                    return self.interpret_expression(else_branch);
+                } else {
+                    return Ok(Value::default());
+                }
+            },
+            
+            _ => todo!("Unsupported expression: {:?}", expression)
         }
     }
 } 

@@ -7,6 +7,7 @@ pub enum Expression {
     StringLiteral(String),
     CharLiteral(char),
     Variable(String),
+    BooleanLiteral(bool),
 
     FunctionCall {
         callee: Box<Expression>,
@@ -82,10 +83,39 @@ pub enum BinaryOperator {
     GreaterThanOrEqual
 }
 
+impl std::fmt::Display for BinaryOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            BinaryOperator::Add => "+",
+            BinaryOperator::Subtract => "-",
+            BinaryOperator::Multiply => "*",
+            BinaryOperator::Divide => "/",
+            BinaryOperator::Modulus => "%",
+            BinaryOperator::And => "&&",
+            BinaryOperator::Or => "||",
+            BinaryOperator::Equal => "==",
+            BinaryOperator::NotEqual => "!=",
+            BinaryOperator::LessThan => "<",
+            BinaryOperator::GreaterThan => ">",
+            BinaryOperator::LessThanOrEqual => "<=",
+            BinaryOperator::GreaterThanOrEqual => ">="
+        })
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum UnaryOperator {
     Negate,
     Not
+}
+
+impl std::fmt::Display for UnaryOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            UnaryOperator::Negate => "-",
+            UnaryOperator::Not => "!"
+        })
+    }
 }
 
 #[derive(Debug, PartialEq)]

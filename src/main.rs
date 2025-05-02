@@ -43,6 +43,25 @@ fn main() {
     println!("\nParsed program: {:#?}", program);
 
     let mut interpreter: interpreter::Interpreter = interpreter::Interpreter::new(&program);
-    let result = interpreter.run();
-    // TODO do something with result
+    match interpreter.run() {
+        Ok(_) => {
+            println!("Program executed successfully.");
+        },
+        Err(e) => {
+            match e {
+                interpreter::InterpreterControl::Continue => {
+                    eprintln!("Error: Program continued outside of a loop.");
+                },
+                interpreter::InterpreterControl::Break => {
+                    eprintln!("Error: Program broke outside of a loop.");
+                },
+                interpreter::InterpreterControl::Return(value) => {
+                    eprintln!("Error: Program returned ouside of a function: {}", value);
+                },
+                interpreter::InterpreterControl::RuntimeError(msg) => {
+                    eprintln!("Runtime error: {}", msg);
+                }
+            }
+        }
+    }
 }

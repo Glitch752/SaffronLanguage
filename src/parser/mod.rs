@@ -548,6 +548,14 @@ impl<'a> Parser<'a> {
                 self.advance(); // Consume the char
                 Ok(Expression::CharLiteral(value.clone()))
             },
+            TokenType::TrueValue => {
+                self.advance(); // Consume 'true'
+                Ok(Expression::BooleanLiteral(true))
+            },
+            TokenType::FalseValue => {
+                self.advance(); // Consume 'false'
+                Ok(Expression::BooleanLiteral(false))
+            },
 
             TokenType::Identifier(ref name) => {
                 self.advance(); // Consume the identifier

@@ -33,3 +33,16 @@ impl std::fmt::Display for Value {
         }
     }
 }
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Number(l), Value::Number(r)) => l == r,
+            (Value::String(l), Value::String(r)) => l == r,
+            (Value::Boolean(l), Value::Boolean(r)) => l == r,
+            (Value::Char(l), Value::Char(r)) => l == r,
+            (Value::Vector(l), Value::Vector(r)) => l == r,
+            _ => false,
+        }
+    }
+}
