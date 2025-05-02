@@ -161,7 +161,8 @@ pub enum Type {
     F32, F64,
     Boolean,
     Character,
-    Vector(Box<Type>) // Strings are vectors of characters
+    Vector(Box<Type>), // Strings are vectors of characters
+    Nil
 }
 
 #[derive(Debug, PartialEq)]

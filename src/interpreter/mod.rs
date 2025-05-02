@@ -63,16 +63,33 @@ impl<'a> Interpreter<'a> {
     }
     fn interpret_statement(&mut self, statement: &Statement) -> InterpreterResult<()> {
         match statement {
-            Statement::Expression { expression, result } => {
-                self.interpret_expression(expression)?;
-                // TODO: Result expressions
+            Statement::Break => {
+                return Err(InterpreterControl::Break);
             },
-            // TODO
-            _ => {
-                return runtime_error!("Unsupported statement: {:?}", statement);
+            Statement::Continue => {
+                return Err(InterpreterControl::Continue);
+            },
+            Statement::Return(value) => {
+                return Err(InterpreterControl::Return(value
+                    .as_ref()
+                    .map(|v| self.interpret_expression(&v))
+                    .unwrap_or(Ok(Value::Nil))?
+                ));
+            },
+
+            Statement::Expression { expression, result } => {
+                let value = self.interpret_expression(expression)?;
+                if *result {
+                    return Err(InterpreterControl::Return(value));
+                } else {
+                    return Ok(());
+                }
+            },
+
+            Statement::VariableDeclaration { mutability, name, variable_type, value } => {
+                todo!()
             }
         };
-        Ok(())
     }
     fn interpret_expression(&mut self, expression: &Expression) -> InterpreterResult {
         match expression {

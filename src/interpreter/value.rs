@@ -3,12 +3,13 @@ pub enum Value {
     String(String),
     Boolean(bool),
     Char(char),
-    Vector(Vec<Value>)
+    Vector(Vec<Value>),
+    Nil
 }
 
 impl Default for Value {
     fn default() -> Self {
-        Value::Number(0.0)
+        Value::Nil
     }
 }
 
@@ -29,7 +30,8 @@ impl std::fmt::Display for Value {
                     write!(f, "{}, ", value)?;
                 }
                 write!(f, "]")
-            }
+            },
+            Value::Nil => write!(f, "nil"),
         }
     }
 }
