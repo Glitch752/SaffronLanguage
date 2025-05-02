@@ -4,6 +4,8 @@ use clap::{command, Parser};
 
 mod tokenizer;
 mod parser;
+mod interpreter;
+pub mod visitor;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -31,9 +33,9 @@ fn main() {
 
     let mut parser: parser::Parser = parser::Parser::new(&tokens);
     let program = match parser.parse_program() {
-        Ok(program) => program,
-        Err(e) => {
-            eprintln!("Error: {:?}", e);
+        Some(program) => program,
+        None => {
+            eprintln!("Error: Failed to parse the program.");
             return;
         }
     };

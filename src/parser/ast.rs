@@ -9,7 +9,7 @@ pub enum Expression {
     Variable(String),
 
     FunctionCall {
-        name: String,
+        callee: Box<Expression>,
         args: Vec<Expression>
     },
     
@@ -26,6 +26,10 @@ pub enum Expression {
     Assignment {
         variable: String,
         value: Box<Expression>
+    },
+    MemberAccess {
+        object: Box<Expression>,
+        member: String
     },
 
     If {
