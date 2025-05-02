@@ -42,7 +42,7 @@ macro_rules! parse_precedence_binary {
     ($self:ident, $next_level:ident, $( ($token_type:path, $operator:expr) ),+ $(,)?) => {
         {
             let mut expr = $self.$next_level()?;
-            while let Some(operator) = match $self.peek().token_type.clone() {
+            while !$self.is_eof() && let Some(operator) = match $self.peek().token_type.clone() {
                 $(
                     $token_type => Some($operator),
                 )+
@@ -66,7 +66,7 @@ macro_rules! parse_precedence_unary {
     ($self:ident, $next_level:ident, $( ($token_type:path, $operator:expr) ),+ $(,)?) => {
         {
             let mut expr = $self.$next_level()?;
-            while let Some(operator) = match $self.peek().token_type.clone() {
+            while !$self.is_eof() && let Some(operator) = match $self.peek().token_type.clone() {
                 $(
                     $token_type => Some($operator),
                 )+
@@ -216,7 +216,7 @@ impl<'a> Parser<'a> {
         Ok(params)
     }
 
-    fn parse_declaration(&mut self) -> Result<Declaration, ParseError> {
+    pub(crate) fn parse_declaration(&mut self) -> Result<Declaration, ParseError> {
         if self.is_match(TokenType::FunctionKeyword) {
             self.advance(); // Consume 'function'
             let name = self.expect_identifier()?;
@@ -286,7 +286,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_block(&mut self) -> Result<Expression, ParseError> {
+    pub(crate) fn parse_block(&mut self) -> Result<Expression, ParseError> {
         self.expect(TokenType::OpenCurlyBracket, "Expected open brace")?; // Expect an open brace
         let mut statements = Vec::new();
         while !self.is_eof() && self.peek().token_type != TokenType::CloseCurlyBracket {
@@ -312,7 +312,7 @@ impl<'a> Parser<'a> {
         Ok(Expression::Block(statements))
     }
 
-    fn parse_statement(&mut self) -> Result<Statement, ParseError> {
+    pub(crate) fn parse_statement(&mut self) -> Result<Statement, ParseError> {
         match self.peek().token_type.clone() {
             // Easy single-keyword statements
             TokenType::BreakKeyword => {
@@ -374,7 +374,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_expression(&mut self) -> Result<Expression, ParseError> {
+    pub(crate) fn parse_expression(&mut self) -> Result<Expression, ParseError> {
         // Blocks are expressions
         if self.is_match(TokenType::OpenCurlyBracket) {
             return self.parse_block(); // Parse a block
@@ -577,5 +577,52 @@ impl<'a> Parser<'a> {
                 })
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tokenizer::Tokenizer;
+
+    macro_rules! parse {
+        ($input:expr, $parse_fn:ident) => {
+            {
+                let mut tokenizer = Tokenizer::new($input.to_string());
+                let tokens = tokenizer.tokenize().unwrap();
+                let mut parser = Parser::new(&tokens);
+                let expression = parser.$parse_fn().unwrap();
+                expression
+            }
+        };
+    }
+
+    #[test]
+    fn test_associativity() {
+        assert_eq!(parse!(r#"
+            1 + 2 * 3 - 4 / 5 % 6
+        "#, parse_expression), 
+            Expression::BinaryOperation {
+                left: Box::new(Expression::BinaryOperation {
+                    left: Box::new(Expression::NumberLiteral(1.0)),
+                    operator: BinaryOperator::Add,
+                    right: Box::new(Expression::BinaryOperation {
+                        left: Box::new(Expression::NumberLiteral(2.0)),
+                        operator: BinaryOperator::Multiply,
+                        right: Box::new(Expression::NumberLiteral(3.0))
+                    })
+                }),
+                operator: BinaryOperator::Subtract,
+                right: Box::new(Expression::BinaryOperation {
+                    left: Box::new(Expression::BinaryOperation {
+                        left: Box::new(Expression::NumberLiteral(4.0)),
+                        operator: BinaryOperator::Divide,
+                        right: Box::new(Expression::NumberLiteral(5.0))
+                    }),
+                    operator: BinaryOperator::Modulus,
+                    right: Box::new(Expression::NumberLiteral(6.0))
+                })
+            }
+        );
     }
 }

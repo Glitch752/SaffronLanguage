@@ -1,9 +1,10 @@
 use value::Value;
 
-use crate::parser::ast::{BinaryOperator, Declaration, Expression, LoopStatement, Program, Statement, UnaryOperator};
+use crate::parser::ast::{BinaryOperator, Declaration, Expression, LoopStatement, Program, Statement, Type, UnaryOperator};
 
 mod value;
 
+#[derive(Debug, PartialEq)]
 pub enum InterpreterControl {
     Continue,
     Break,
@@ -22,20 +23,18 @@ macro_rules! runtime_error {
     };
 }
 
-pub struct Interpreter<'a> {
-    program: &'a Program
+pub struct Interpreter {
 }
 
-impl<'a> Interpreter<'a> {
-    pub fn new(program: &'a Program) -> Self {
+impl Interpreter {
+    pub fn new() -> Self {
         Interpreter {
-            program
         }
     }
-    pub fn run(&mut self) -> InterpreterResult<()> {
+    pub fn run(&mut self, program: &Program) -> InterpreterResult<()> {
         // Initialize the interpreter state
 
-        self.interpret_program(&self.program)?;
+        self.interpret_program(program)?;
 
         Ok(())
     }
@@ -267,3 +266,57 @@ impl<'a> Interpreter<'a> {
         }
     }
 } 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{parser::{ast::{BinaryOperator, Declaration, Expression, LoopStatement, Program, Statement, Type, UnaryOperator}, Parser}, tokenizer::Tokenizer};
+
+    macro_rules! parse {
+        ($input:expr, $parse_fn:ident) => {
+            {
+                let mut tokenizer = Tokenizer::new($input.to_string());
+                let tokens = tokenizer.tokenize().unwrap();
+                let mut parser = Parser::new(&tokens);
+                let expression = parser.$parse_fn().unwrap();
+                expression
+            }
+        };
+    }
+
+    #[test]
+    fn test_interpreter() {
+        let program = Program {
+            declarations: vec![
+                Declaration::Function {
+                    name: "main".to_string(),
+                    params: vec![],
+                    return_type: Type::F64,
+                    body: Box::new(Expression::Block(vec![
+                        Statement::Expression {
+                            expression: Box::new(Expression::BinaryOperation {
+                                left: Box::new(Expression::NumberLiteral(5.0)),
+                                operator: BinaryOperator::Add,
+                                right: Box::new(Expression::NumberLiteral(3.0))
+                            }),
+                            result: true
+                        }
+                    ]))
+                }
+            ]
+        };
+
+        let mut interpreter = Interpreter::new();
+        let result = interpreter.run(&program);
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn test_associativity() {
+        let result = Interpreter::new().interpret_expression(&parse!(r#"
+            1 + 2 * 3 - 4 / 5 % 6
+        "#, parse_expression));
+
+        assert_eq!(result, Ok(Value::Number(1.0 + 2.0 * 3.0 - 4.0 / 5.0 % 6.0)));
+    }
+}

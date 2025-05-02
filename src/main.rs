@@ -1,3 +1,5 @@
+#![feature(let_chains)]
+
 use std::fs;
 
 use clap::{command, Parser};
@@ -42,8 +44,8 @@ fn main() {
     // Print the parsed program
     println!("\nParsed program: {:#?}", program);
 
-    let mut interpreter: interpreter::Interpreter = interpreter::Interpreter::new(&program);
-    match interpreter.run() {
+    let mut interpreter: interpreter::Interpreter = interpreter::Interpreter::new();
+    match interpreter.run(&program) {
         Ok(_) => {
             println!("Program executed successfully.");
         },
