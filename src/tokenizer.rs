@@ -264,6 +264,20 @@ impl Tokenizer {
                             break;
                         }
                     }
+                    
+                    let mut suffix = String::new();
+                    while let Some(&next_char) = self.peek() {
+                        if next_char.is_alphabetic() {
+                            suffix.push(self.next().unwrap());
+                        } else {
+                            break;
+                        }
+                    }
+
+                    // For now, no suffixes are allowed
+                    if !suffix.is_empty() {
+                        return Err(format!("Invalid number suffix: {}", suffix));
+                    }
 
                     if number.contains('.') {
                         if let Ok(value) = number.parse::<f64>() {
@@ -382,5 +396,188 @@ impl Tokenizer {
         }
 
         Ok(&self.tokens)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tokenizer() {
+        let input = r#"
+            import hello.world;
+            func add(a, b) {
+                return a + b;
+            }
+        "#;
+
+        let mut tokenizer = Tokenizer::new(input.to_string());
+        let tokens = tokenizer.tokenize().unwrap();
+
+        assert_eq!(tokens.len(), 19);
+        assert_eq!(tokens[0].token_type, TokenType::ImportKeyword);
+        assert_eq!(tokens[1].token_type, TokenType::Identifier("hello".to_string()));
+        assert_eq!(tokens[2].token_type, TokenType::Dot);
+        assert_eq!(tokens[3].token_type, TokenType::Identifier("world".to_string()));
+        assert_eq!(tokens[4].token_type, TokenType::Semicolon);
+        assert_eq!(tokens[5].token_type, TokenType::FunctionKeyword);
+        assert_eq!(tokens[6].token_type, TokenType::Identifier("add".to_string()));
+        assert_eq!(tokens[7].token_type, TokenType::OpenParenthesis);
+        assert_eq!(tokens[8].token_type, TokenType::Identifier("a".to_string()));
+        assert_eq!(tokens[9].token_type, TokenType::Comma);
+        assert_eq!(tokens[10].token_type, TokenType::Identifier("b".to_string()));
+        assert_eq!(tokens[11].token_type, TokenType::CloseParenthesis);
+        assert_eq!(tokens[12].token_type, TokenType::OpenCurlyBracket);
+        assert_eq!(tokens[13].token_type, TokenType::ReturnKeyword);
+        assert_eq!(tokens[14].token_type, TokenType::Identifier("a".to_string()));
+        assert_eq!(tokens[15].token_type, TokenType::AddOperator);
+        assert_eq!(tokens[16].token_type, TokenType::Identifier("b".to_string()));
+        assert_eq!(tokens[17].token_type, TokenType::Semicolon);
+        assert_eq!(tokens[18].token_type, TokenType::CloseCurlyBracket);
+    }
+
+    #[test]
+    fn test_strings() {
+        let input = r#""hello world""#;
+        let mut tokenizer = Tokenizer::new(input.to_string());
+        let tokens = tokenizer.tokenize().unwrap();
+
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].token_type, TokenType::StringLiteral("hello world".to_string()));
+    }
+
+    #[test]
+    fn test_char_literals() {
+        let input = r#"'a'"#;
+        let mut tokenizer = Tokenizer::new(input.to_string());
+        let tokens = tokenizer.tokenize().unwrap();
+
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].token_type, TokenType::CharLiteral('a'));
+    }
+
+    #[test]
+    fn test_float_literals() {
+        let input = r#"3.14"#;
+        let mut tokenizer = Tokenizer::new(input.to_string());
+        let tokens = tokenizer.tokenize().unwrap();
+
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].token_type, TokenType::FloatLiteral(3.14));
+
+        let input = r#".5"#;
+        let mut tokenizer = Tokenizer::new(input.to_string());
+        let tokens = tokenizer.tokenize().unwrap();
+
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].token_type, TokenType::FloatLiteral(0.5));
+
+        let input = r#"5."#;
+        let mut tokenizer = Tokenizer::new(input.to_string());
+        let tokens = tokenizer.tokenize().unwrap();
+
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].token_type, TokenType::FloatLiteral(5.0));
+    }
+
+    #[test]
+    fn test_integer_literals() {
+        let input = r#"42"#;
+        let mut tokenizer = Tokenizer::new(input.to_string());
+        let tokens = tokenizer.tokenize().unwrap();
+
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].token_type, TokenType::IntegerLiteral(42));
+    }
+
+    #[test]
+    fn test_keywords() {
+        let input = r#"import func return if else loop const let break continue"#;
+        let mut tokenizer = Tokenizer::new(input.to_string());
+        let tokens = tokenizer.tokenize().unwrap();
+
+        assert_eq!(tokens.len(), 10);
+        assert_eq!(tokens[0].token_type, TokenType::ImportKeyword);
+        assert_eq!(tokens[1].token_type, TokenType::FunctionKeyword);
+        assert_eq!(tokens[2].token_type, TokenType::ReturnKeyword);
+        assert_eq!(tokens[3].token_type, TokenType::IfKeyword);
+        assert_eq!(tokens[4].token_type, TokenType::ElseKeyword);
+        assert_eq!(tokens[5].token_type, TokenType::LoopKeyword);
+        assert_eq!(tokens[6].token_type, TokenType::ConstKeyword);
+        assert_eq!(tokens[7].token_type, TokenType::LetKeyword);
+        assert_eq!(tokens[8].token_type, TokenType::BreakKeyword);
+        assert_eq!(tokens[9].token_type, TokenType::ContinueKeyword);
+    }
+
+    #[test]
+    fn test_operators() {
+        let input = r#"+ - * / % = && || ! == != >= <= < >"#;
+        let mut tokenizer = Tokenizer::new(input.to_string());
+        let tokens = tokenizer.tokenize().unwrap();
+
+        let expected = vec![
+            TokenType::AddOperator,
+            TokenType::SubtractOperator,
+            TokenType::MultiplyOperator,
+            TokenType::DivideOperator,
+            TokenType::ModuloOperator,
+            TokenType::AssignmentOperator,
+            TokenType::AndOperator,
+            TokenType::OrOperator,
+            TokenType::NotOperator,
+            TokenType::EqualOperator,
+            TokenType::NotEqualOperator,
+            TokenType::GreaterThanEqualOperator,
+            TokenType::LessThanEqualOperator,
+            TokenType::OpenAngleBracket,
+            TokenType::CloseAngleBracket
+        ];
+
+        assert_eq!(tokens.len(), expected.len());
+        for (i, token) in tokens.iter().enumerate() {
+            assert_eq!(token.token_type, expected[i]);
+        }
+    }
+
+    #[test]
+    fn test_unknown_character() {
+        let input = r#"$"#;
+        let mut tokenizer = Tokenizer::new(input.to_string());
+        let result = tokenizer.tokenize();
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Unexpected character: '$'".to_string());
+    }
+
+    #[test]
+    fn test_empty_character_literal() {
+        let input = r#"''"#;
+        let mut tokenizer = Tokenizer::new(input.to_string());
+        let result = tokenizer.tokenize();
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Empty character literal".to_string());
+    }
+
+    #[test]
+    fn test_invalid_float() {
+        let input = r#"3.14.15"#;
+        let mut tokenizer = Tokenizer::new(input.to_string());
+        let result = tokenizer.tokenize();
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Invalid float value: 3.14.15".to_string());
+    }
+
+    #[test]
+    fn test_invalid_suffix() {
+        let input = r#"42abc"#;
+        let mut tokenizer = Tokenizer::new(input.to_string());
+        let result = tokenizer.tokenize();
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Invalid number suffix: abc".to_string());
     }
 }
