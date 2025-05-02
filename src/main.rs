@@ -41,4 +41,8 @@ fn main() {
 
     // Print the parsed program
     println!("\nParsed program: {:#?}", program);
+
+    let mut interpreter: interpreter::Interpreter = interpreter::Interpreter::new(&program);
+    let result = interpreter.run();
+    // TODO do something with result
 }
