@@ -1,11 +1,7 @@
-// Simple modules
 import std.io.stdout;
 import std;
 
 func main() -> i32 {
-    const x: i32 = 5;
-    let y: i32 = 10;
-
     loop(const i : std.range(1, 100)) {
         if(i % 15 == 0) stdout.println("FizzBuzz");
         else if(i % 3 == 0) {
@@ -14,12 +10,6 @@ func main() -> i32 {
             stdout.println("Buzz");
         } else {
             stdout.println(std.toString(i));
-            //i |> std.toString |> stdout.println;
         }
     }
 }
-
-// u8, u16, u32, u64, i8, i16, i32, i64, f32, f64, etc.
-// dynamic array built in for interpreter
-// Strings are dynamic arrays of chars
-// chars are u32s and guarenteed to be valid UTF-8

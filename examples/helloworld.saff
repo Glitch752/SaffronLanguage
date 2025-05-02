@@ -1,5 +1,5 @@
-import std.io.stdout;
-import std;
+import std.io.stdout.println;
+import std.toString;
 
 func main() -> i32 {
     println("Hello, World!");

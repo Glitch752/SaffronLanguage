@@ -1,4 +1,4 @@
-use ast::{Declaration, Expression, FunctionParameter, Program, Statement, Type, VariableMutability};
+use ast::{BinaryOperator, UnaryOperator, Declaration, Expression, FunctionParameter, Program, Statement, Type, VariableMutability};
 
 use crate::tokenizer::{Token, TokenType};
 
@@ -16,6 +16,53 @@ pub enum ParseError {
 pub struct Parser<'a> {
     tokens: &'a [Token],
     current: usize,
+}
+
+macro_rules! parse_precedence_binary {
+    ($self:ident, $next_level:ident, $( ($token_type:path, $operator:expr) ),+ $(,)?) => {
+        {
+            let mut expr = $self.$next_level()?;
+            while let Some(operator) = match $self.peek().token_type.clone() {
+                $(
+                    $token_type => Some($operator),
+                )+
+                _ => None
+            } {
+                $self.advance(); // Consume the operator
+
+                let right = Box::new($self.$next_level()?);
+                expr = Expression::BinaryOperation {
+                    left: Box::new(expr),
+                    operator,
+                    right
+                };
+            }
+            Ok(expr)
+        }
+    };
+}
+
+macro_rules! parse_precedence_unary {
+    ($self:ident, $next_level:ident, $( ($token_type:path, $operator:expr) ),+ $(,)?) => {
+        {
+            let mut expr = $self.$next_level()?;
+            while let Some(operator) = match $self.peek().token_type.clone() {
+                $(
+                    $token_type => Some($operator),
+                )+
+                _ => None
+            } {
+                $self.advance(); // Consume the operator
+
+                let right = Box::new($self.$next_level()?);
+                expr = Expression::UnaryOperation {
+                    operator,
+                    operand: right
+                };
+            }
+            Ok(expr)
+        }
+    };
 }
 
 impl<'a> Parser<'a> {
@@ -247,6 +294,58 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expression(&mut self) -> Result<Expression, ParseError> {
+        self.parse_equality_or_lower()
+    }
+
+    fn parse_equality_or_lower(&mut self) -> Result<Expression, ParseError> {
+        parse_precedence_binary!(
+            self,
+            parse_comparison_or_lower,
+            (TokenType::EqualOperator, BinaryOperator::Equal),
+            (TokenType::NotEqualOperator, BinaryOperator::NotEqual),
+        )
+    }
+
+    fn parse_comparison_or_lower(&mut self) -> Result<Expression, ParseError> {
+        parse_precedence_binary!(
+            self,
+            parse_term_or_lower,
+            (TokenType::OpenAngleBracket, BinaryOperator::Add),
+            (TokenType::CloseAngleBracket, BinaryOperator::Subtract),
+            (TokenType::LessThanEqualOperator, BinaryOperator::Multiply),
+            (TokenType::GreaterThanEqualOperator, BinaryOperator::Divide),
+        )
+    }
+
+    fn parse_term_or_lower(&mut self) -> Result<Expression, ParseError> {
+        parse_precedence_binary!(
+            self,
+            parse_factor_or_lower,
+            (TokenType::AddOperator, BinaryOperator::Add),
+            (TokenType::SubtractOperator, BinaryOperator::Subtract),
+        )
+    }
+
+    fn parse_factor_or_lower(&mut self) -> Result<Expression, ParseError> {
+        parse_precedence_binary!(
+            self,
+            parse_unary_or_lower,
+            (TokenType::MultiplyOperator, BinaryOperator::Multiply),
+            (TokenType::DivideOperator, BinaryOperator::Divide),
+            (TokenType::ModuloOperator, BinaryOperator::Modulus),
+        )
+    }
+
+    fn parse_unary_or_lower(&mut self) -> Result<Expression, ParseError> {
+        parse_precedence_unary!(
+            self,
+            parse_primary_or_lower,
+            (TokenType::NotOperator, UnaryOperator::Not),
+            (TokenType::SubtractOperator, UnaryOperator::Negate),
+        )
+    }
+
+    fn parse_primary_or_lower(&mut self) -> Result<Expression, ParseError> {
         match self.peek().token_type.clone() {
             // Simple literals
             TokenType::IntegerLiteral(ref value) => {
@@ -289,21 +388,15 @@ impl<'a> Parser<'a> {
                 }
             },
 
-            // In a recursive descent parser, we parse in the reverse order of precedence
-            // _ => self.consume_assignment_or_lower()
-            _ => {
-                // TODO
-                Err(ParseError::UnexpectedToken {
-                    expected: None,
-                    found: self.peek().clone()
-                })
-            }
+            TokenType::OpenParenthesis => {
+                self.advance(); // Consume the open parenthesis
+                let expr = self.parse_expression()?;
+                self.expect(TokenType::CloseParenthesis)?; // Expect a close parenthesis
+                Ok(expr)
+            },
+            _ => self.parse_expression()
         }
     }
-
-    // TODO: These could be simplified with a macro
-
-    // WIP
 
     // fn consume_assignment_or_lower(&mut self) -> Result<Expression, ParseError> {
     //     let mut expr = self.consume_logical_or_or_lower()?;
