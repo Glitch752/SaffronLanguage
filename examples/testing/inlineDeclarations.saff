@@ -1,0 +1,23 @@
+func main() -> i32 {
+    import std.io.stdout;
+    
+    struct Point<T> {
+        x: T;
+        y: T;
+
+        func create(x: T, y: T) -> Self {
+            new Point { x, y }
+        }
+
+        func +(self: Self, other: Self) -> Self {
+
+        }
+        func [std.ToString](self: Self) -> Self {
+
+        }
+    }
+    type Point2D = Point<f64>;
+    
+    const point: Point2D = Point2D.create(1.0, 2.0);
+    stdout.println("Point2D: ", point);
+}

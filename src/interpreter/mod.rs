@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use value::Value;
 
-use crate::parser::ast::{BinaryOperator, Declaration, Expression, ExpressionId, LoopStatement, Program, Statement, Type, UnaryOperator};
+use crate::parser::ast::{BinaryOperator, Declaration, Expression, ExpressionId, LoopType, Program, Statement, Type, UnaryOperator};
 
 mod value;
 mod resolver;
@@ -57,7 +57,7 @@ impl Interpreter {
     }
     fn interpret_declaration(&mut self, declaration: &Declaration) -> InterpreterResult<()> {
         match declaration {
-            Declaration::Function { name, params, return_type, body } => {
+            Declaration::Function { name, params, return_type, body, generic_args } => {
                 // TODO: Functions
                 // TEMPORARY
                 if name == "main" {
@@ -66,12 +66,22 @@ impl Interpreter {
             },
             Declaration::Import { path } => {
                 // TODO: Imports
+            },
+            Declaration::Struct { name, elements: declarations, generic_args } => {
+
+            },
+            Declaration::TypeDeclaration { name, alias, generic_args } => {
+
             }
         }
         Ok(())
     }
     fn interpret_statement(&mut self, statement: &Statement) -> InterpreterResult<()> {
         match statement {
+            Statement::Declaration(declaration) => {
+                self.interpret_declaration(declaration)?;
+                return Ok(());
+            },
             Statement::Break => {
                 return Err(InterpreterControl::Break);
             },
@@ -221,7 +231,7 @@ impl Interpreter {
                 Ok(Value::default())
             },
 
-            Expression::Loop(LoopStatement::Infinite { body }) => {
+            Expression::Loop(LoopType::Infinite { body }) => {
                 loop {
                     match self.interpret_expression(body) {
                         Err(InterpreterControl::Break) => {
@@ -238,7 +248,7 @@ impl Interpreter {
                     };
                 }
             },
-            Expression::Loop(LoopStatement::While { condition, body }) => {
+            Expression::Loop(LoopType::While { condition, body }) => {
                 loop {
                     let condition_value = self.interpret_expression(condition)?;
                     if let Value::Boolean(false) = condition_value {
@@ -259,7 +269,7 @@ impl Interpreter {
                     };
                 }
             },
-            Expression::Loop(LoopStatement::Iterator { mutability, iterator, iterable, body }) => {
+            Expression::Loop(LoopType::Iterator { mutability, iterator, iterable, body }) => {
                 todo!()
             },
 
@@ -304,6 +314,7 @@ mod tests {
                     name: "main".to_string(),
                     params: vec![],
                     return_type: Type::F64,
+                    generic_args: vec![],
                     body: Box::new(Expression::Block(vec![
                         Statement::Expression {
                             expression: Box::new(Expression::BinaryOperation {

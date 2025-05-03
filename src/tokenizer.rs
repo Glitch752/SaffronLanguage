@@ -12,6 +12,10 @@ pub enum TokenType {
     // keywords
     ImportKeyword, // import
     FunctionKeyword, // func
+    StructKeyword, // struct
+    TypeKeyword, // type
+    NewKeyword, // new
+
     ReturnKeyword, // return
     IfKeyword, // if
     ElseKeyword, // else
@@ -82,6 +86,9 @@ impl TokenType {
             TokenType::LoopKeyword => "loop".to_string(),
             TokenType::BreakKeyword => "break".to_string(),
             TokenType::ContinueKeyword => "continue".to_string(),
+            TokenType::StructKeyword => "struct".to_string(),
+            TokenType::TypeKeyword => "type".to_string(),
+            TokenType::NewKeyword => "new".to_string(),
 
             TokenType::TrueValue => "true".to_string(),
             TokenType::FalseValue => "false".to_string(),
@@ -114,6 +121,10 @@ static KEYWORDS: LazyLock<HashMap<&str, TokenType>> = LazyLock::new(|| {
 
     keywords.insert("import", TokenType::ImportKeyword);
     keywords.insert("func", TokenType::FunctionKeyword);
+    keywords.insert("struct", TokenType::StructKeyword);
+    keywords.insert("type", TokenType::TypeKeyword);
+    keywords.insert("new", TokenType::NewKeyword);
+    
     keywords.insert("return", TokenType::ReturnKeyword);
     keywords.insert("if", TokenType::IfKeyword);
     keywords.insert("else", TokenType::ElseKeyword);

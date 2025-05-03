@@ -1,0 +1,15 @@
+
+// In Std:
+// symbol ToString;
+
+import std.ToString;
+
+symbol Whatever;
+
+func zip<T, F>(arr1: T[], arr2: F[]) : T.[ToString], F.[ToString] -> nil {
+    const str: String = arr.[ToString]();
+}
+
+struct Something<T> : T.[ToString] {
+
+}

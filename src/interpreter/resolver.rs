@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::parser::ast::{Declaration, Expression, ExpressionId, LoopStatement, Program, Statement, Type};
+use crate::parser::ast::{Declaration, Expression, ExpressionId, LoopType, Program, Statement, Type};
 
 use super::Interpreter;
 
@@ -48,11 +48,17 @@ impl<'a> Resolver<'a> {
 
     fn resolve_declaration(&mut self, declaration: &Declaration) -> Result<(), String> {
         match declaration {
-            Declaration::Function { name, params, return_type, body } => {
-                
-            }
+            Declaration::Function { name, params, return_type, body, generic_args } => {
+                todo!()
+            },
             Declaration::Import { path } => {
-                
+                todo!()
+            },
+            Declaration::Struct { name, elements: declarations, generic_args } => {
+                todo!()
+            },
+            Declaration::TypeDeclaration { name, alias, generic_args } => {
+                todo!()
             }
         }
         Ok(())
@@ -60,7 +66,7 @@ impl<'a> Resolver<'a> {
 
     fn resolve_expression(&mut self, expression: &Expression) -> Result<(), String> {
         match expression {
-            Expression::Assignment { variable, value, expression_id } => {
+            Expression::Assignment { name: variable, value, expression_id } => {
                 self.resolve_expression(value)?;
                 self.record_local_depth(*expression_id, variable.to_string())?;
             },
@@ -105,14 +111,14 @@ impl<'a> Resolver<'a> {
                     self.resolve_expression(&else_branch)?;
                 }
             },
-            Expression::Loop(LoopStatement::Infinite { body }) => {
+            Expression::Loop(LoopType::Infinite { body }) => {
                 self.resolve_expression(&body)?;
             },
-            Expression::Loop(LoopStatement::While { condition, body }) => {
+            Expression::Loop(LoopType::While { condition, body }) => {
                 self.resolve_expression(&condition)?;
                 self.resolve_expression(&body)?;
             },
-            Expression::Loop(LoopStatement::Iterator { iterator, iterable, body, .. }) => {
+            Expression::Loop(LoopType::Iterator { iterator, iterable, body, .. }) => {
                 self.declare(iterator.to_string());
                 self.resolve_expression(&iterable)?;
                 self.define(iterator.to_string());
@@ -121,13 +127,22 @@ impl<'a> Resolver<'a> {
             },
             Expression::MemberAccess { object, .. } => {
                 self.resolve_expression(&object)?;
-            }
+            },
+            Expression::Array { array_type, size, initial_value } => {
+                todo!()
+            },
+            Expression::StructCreation { struct_type, fields } => {
+                todo!()
+            },
         }
         Ok(())
     }
 
     fn resolve_statement(&mut self, statement: &Statement) -> Result<(), String> {
         match statement {
+            Statement::Declaration(declaration) => {
+                self.resolve_declaration(declaration)?;
+            },
             Statement::Break | Statement::Continue => {
                 // Nothing to do here
             },

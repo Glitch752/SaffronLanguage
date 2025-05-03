@@ -30,7 +30,7 @@ pub enum Expression {
     },
     
     Assignment {
-        variable: String,
+        name: String,
         value: Box<Expression>,
         expression_id: ExpressionId
     },
@@ -39,12 +39,22 @@ pub enum Expression {
         member: String
     },
 
+    Array {
+        array_type: Type,
+        size: Box<Expression>,
+        initial_value: Box<Expression>
+    },
+    StructCreation {
+        struct_type: Type,
+        fields: Vec<(String, Box<Expression>)>
+    },
+
     If {
         condition: Box<Expression>,
         then_branch: Box<Expression>,
         else_branch: Option<Box<Expression>>
     },
-    Loop(LoopStatement)
+    Loop(LoopType)
 }
 
 #[derive(Debug, PartialEq)]
@@ -54,7 +64,7 @@ pub enum VariableMutability {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum LoopStatement {
+pub enum LoopType {
     While {
         condition: Box<Expression>,
         body: Box<Expression>
@@ -125,7 +135,41 @@ impl std::fmt::Display for UnaryOperator {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum Declaration {
+    Function {
+        name: String,
+        params: Vec<FunctionParameter>,
+        generic_args: Vec<String>,
+        return_type: Type,
+        body: Box<Expression>
+    },
+    Struct {
+        name: String,
+        elements: Vec<StructElement>,
+        generic_args: Vec<String>
+    },
+    TypeDeclaration {
+        name: String,
+        generic_args: Vec<String>,
+        alias: Type
+    },
+    Import {
+        path: Vec<String>
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum StructElement {
+    Declaration(Declaration),
+    Field {
+        name: String,
+        field_type: Type
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Statement {
+    Declaration(Declaration),
     Expression {
         expression: Box<Expression>,
         result: bool // true if this is a result value, false if it's just an expression statement
@@ -139,24 +183,6 @@ pub enum Statement {
     Break,
     Continue,
     Return(Option<Box<Expression>>)
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Declaration {
-    Function {
-        name: String,
-        params: Vec<FunctionParameter>,
-        return_type: Type,
-        body: Box<Expression>
-    },
-    // Struct {
-    //     name: String,
-    //     declarations: Vec<Box<Declaration>>,
-
-    // },
-    Import {
-        path: Vec<String>
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -176,6 +202,11 @@ pub enum Type {
         name: String,
         generic_args: Vec<Type> // Generic arguments for the type
     },
+    Function {
+        params: Vec<Type>,
+        return_type: Box<Type>
+    },
+    Array(Box<Type>),
     /// Nil is the return type for functions that don't return a value.
     /// Nil can only have the value of `nil` (which, itself, is only valid for the type Nil), and is invalid in other contexts.
     Nil

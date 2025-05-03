@@ -4,25 +4,23 @@
 import std.io.stdout;
 import std;
 
-const myString: String = "";
-
 struct MappableArray<T> {
     import std.io;
 
-    // type Default = Self<f64>;
+    type Default = Self<f64>;
 
     arr: Vec<T>;
     
-    // inherit arr.push as push;
-    // inherit arr iterator;
-
-    // Syntactic sugar for:
-    func push(self: Self, value: T) {
-        self.arr.push(value);
-    }
+    // Shorthand for `inherit arr.push as push;`,
+    // and syntactic sugar for:
+    // func push(self: Self, value: T) {
+    //     self.arr.push(value);
+    // }
+    inherit arr.push;
+    inherit arr iterator;
 
     func create() {
-        MappableArray<T> {
+        new Self {
             arr: Vec<T>.create()
         }
     }
@@ -36,21 +34,14 @@ struct MappableArray<T> {
     }
 }
 
-// MappableArray.Default.create();
-
-const arr = MappableArray<f64>.create();
-const mapped = arr.map<i32>(func(i) {
-    std.floatToInt(i)
-});
-
-// type SynthFunction<T> = func T -> T;
-// type FloatSynthFunction = SynthFunction<f64>;
-
 struct Synth {
+    type SynthFunction<T> = func T -> T;
+    type FloatSynthFunction = SynthFunction<f64>;
+
     userFunction: FloatSynthFunction;
 
     func create(userFunction: FloatSynthFunction) {
-        Synth {
+        new Synth {
             userFunction
         }
     }
@@ -61,14 +52,20 @@ struct Synth {
 }
 
 func main() -> i32 {
-    loop(const i : std.range(1, 100)) {
-        if(i % 15 == 0) stdout.println("FizzBuzz");
-        else if(i % 3 == 0) {
-            stdout.println("Fizz");
-        } else if(i % 5 == 0) {
-            stdout.println("Buzz");
-        } else {
-            stdout.println(std.toString(i));
-        }
-    }
+    const synth = Synth.create(func(i) {
+        i * 2.0
+    });
+    synth.setUserSynthesisFunction(synth, func(i) {
+        i * 3.0
+    });
+    synth.userFunction(2.0);
+    
+    const myString: String = "";
+
+    const arr = MappableArray.Default.create();
+    const mapped = arr.map<i32>(func(i) {
+        std.f64Toi32(i)
+    });
+
+    0
 }

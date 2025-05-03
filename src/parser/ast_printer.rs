@@ -1,4 +1,4 @@
-use super::ast::{Declaration, Expression, LoopStatement, Program, Statement, Type, VariableMutability};
+use super::ast::{Declaration, Expression, LoopType, Program, Statement, StructElement, Type, VariableMutability};
 
 pub struct ASTPrinter {
     indent: usize,
@@ -53,7 +53,7 @@ impl ASTPrinter {
 
     fn print_declaration(&mut self, declaration: &Declaration) -> String {
         match declaration {
-            Declaration::Function { name, params, return_type, body } => {
+            Declaration::Function { name, params, return_type, body, generic_args } => {
                 let mut output = fmt_indent!(self, "Function: {}\n", name);
                 self.indent += 1;
                 output.push_str(&fmt_indent!(self, "Parameters:\n"));
@@ -69,12 +69,42 @@ impl ASTPrinter {
             Declaration::Import { path } => {
                 fmt_indent!(self, "Import: {}\n", path.join("."))
             }
+            Declaration::Struct { name, elements, generic_args } => {
+                let mut output = fmt_indent!(self, "Struct: {}\n", name);
+                self.indent += 1;
+                output.push_str(&fmt_indent!(self, "Elements:\n"));
+                for element in elements {
+                    match element {
+                        StructElement::Field { name, field_type } => {
+                            output.push_str(&fmt_indent!(self, "- {}: {}\n", name, self.print_type(field_type)));
+                        },
+                        StructElement::Declaration(declaration) => {
+                            output.push_str(&self.print_declaration(declaration));
+                        }
+                    }
+                }
+                self.indent -= 1;
+                output
+            },
+            Declaration::TypeDeclaration { name, alias, generic_args } => {
+                let mut output = fmt_indent!(self, "Type Declaration: {}\n", name);
+                self.indent += 1;
+                output.push_str(&fmt_indent!(self, "Alias: {}\n", self.print_type(alias)));
+                if !generic_args.is_empty() {
+                    output.push_str(&fmt_indent!(self, "Generic Arguments:\n"));
+                    for arg in generic_args {
+                        output.push_str(&fmt_indent!(self, "- {}\n", arg));
+                    }
+                }
+                self.indent -= 1;
+                output
+            }
         }
     }
 
     fn print_expression(&mut self, expression: &Expression) -> String {
         match expression {
-            Expression::Assignment { variable, value, .. } => {
+            Expression::Assignment { name: variable, value, .. } => {
                 let mut output = fmt_indent!(self, "Assignment:\n");
                 self.indent += 1;
                 output.push_str(&fmt_indent!(self, "Variable: {}\n", variable));
@@ -152,14 +182,14 @@ impl ASTPrinter {
                 self.indent -= 1;
                 output
             },
-            Expression::Loop(LoopStatement::Infinite { body }) => {
+            Expression::Loop(LoopType::Infinite { body }) => {
                 let mut output = fmt_indent!(self, "Infinite Loop:\n");
                 self.indent += 1;
                 output.push_str(&self.print_expression(body));
                 self.indent -= 1;
                 output
             },
-            Expression::Loop(LoopStatement::While { condition, body }) => {
+            Expression::Loop(LoopType::While { condition, body }) => {
                 let mut output = fmt_indent!(self, "While Loop:\n");
                 self.indent += 1;
                 output.push_str(&fmt_indent!(self, "Condition:\n"));
@@ -169,7 +199,7 @@ impl ASTPrinter {
                 self.indent -= 1;
                 output
             },
-            Expression::Loop(LoopStatement::Iterator { mutability, iterator, iterable, body }) => {
+            Expression::Loop(LoopType::Iterator { mutability, iterator, iterable, body }) => {
                 let mut output = fmt_indent!(self, "Iterator Loop:\n");
                 self.indent += 1;
                 output.push_str(&fmt_indent!(self, "Mutability: {}\n", match mutability {
@@ -193,11 +223,39 @@ impl ASTPrinter {
                 self.indent -= 1;
                 output
             }
+            Expression::Array { array_type, size, initial_value } => {
+                let mut output = fmt_indent!(self, "Array:\n");
+                self.indent += 1;
+                output.push_str(&fmt_indent!(self, "Type: {}\n", self.print_type(array_type)));
+                output.push_str(&fmt_indent!(self, "Size:\n"));
+                output.push_str(&self.print_expression(size));
+                output.push_str(&fmt_indent!(self, "Initial Value:\n"));
+                output.push_str(&self.print_expression(initial_value));
+                self.indent -= 1;
+                output
+            },
+            Expression::StructCreation { struct_type, fields } => {
+                let mut output = fmt_indent!(self, "Struct Creation:\n");
+                self.indent += 1;
+                output.push_str(&fmt_indent!(self, "Type: {}\n", self.print_type(struct_type)));
+                output.push_str(&fmt_indent!(self, "Fields:\n"));
+                for (name, value) in fields {
+                    output.push_str(&fmt_indent!(self, "{}:\n", name));
+                    self.indent += 1;
+                    output.push_str(&self.print_expression(value));
+                    self.indent -= 1;
+                }
+                self.indent -= 1;
+                output
+            }
         }
     }
 
     fn print_statement(&mut self, statement: &Statement) -> String {
         match statement {
+            Statement::Declaration(declaration) => {
+                self.print_declaration(declaration)
+            },
             Statement::Break => {
                 fmt_indent!(self, "Break\n")
             },
@@ -241,7 +299,7 @@ impl ASTPrinter {
         }
     }
 
-    fn print_type(&self, ty: &Type) -> String {
+    fn print_type(&mut self, ty: &Type) -> String {
         match ty {
             Type::Boolean => "Boolean".to_string(),
             Type::Character => "Character".to_string(),
@@ -263,6 +321,25 @@ impl ASTPrinter {
                     output.push_str(&generic_args.iter().map(|arg| self.print_type(arg)).collect::<Vec<_>>().join(", "));
                     output.push('>');
                 }
+                output
+            },
+            Type::Array(of) => {
+                let mut output = "\n".to_string();
+                output.push_str(&fmt_indent!(self, "Array of "));
+                self.indent += 1;
+                output.push_str(&self.print_type(of));
+                self.indent -= 1;
+                output
+            }
+            Type::Function { params, return_type } => {
+                let mut output = fmt_indent!(self, "Function:\n");
+                self.indent += 1;
+                output.push_str(&fmt_indent!(self, "Parameters:\n"));
+                for param in params {
+                    output.push_str(&fmt_indent!(self, "- {}\n", self.print_type(&param)));
+                }
+                output.push_str(&fmt_indent!(self, "Return Type: {}\n", self.print_type(return_type)));
+                self.indent -= 1;
                 output
             }
         }

@@ -1,4 +1,4 @@
-use ast::{BinaryOperator, Declaration, Expression, ExpressionId, FunctionParameter, LoopStatement, Program, Statement, Type, UnaryOperator, VariableMutability};
+use ast::{BinaryOperator, Declaration, Expression, ExpressionId, FunctionParameter, LoopType, Program, Statement, StructElement, Type, UnaryOperator, VariableMutability};
 
 use crate::tokenizer::{Token, TokenType};
 
@@ -21,7 +21,8 @@ impl std::fmt::Display for ParseError {
             ParseError::UnexpectedToken { expected, found, message } => {
                 let message = message.as_ref().map(|s| s.as_str()).unwrap_or("");
                 if let Some(expected) = expected {
-                    write!(f, "Expected {:?}, found {:?}. {}", expected, found.token_type, message)
+                    write!(f, "Expected {:?}, found {:?}. {}. | ", expected, found.token_type, message)?;
+                    write!(f, "file:{}:{}", found.line, found.column)
                 } else {
                     write!(f, "Unexpected token: {:?}. {}", found.token_type, message)
                 }
@@ -37,6 +38,8 @@ pub struct Parser<'a> {
     tokens: &'a [Token],
     current: usize,
     errors: Vec<ParseError>,
+    /// The current expression ID. This is used to uniquely identify expressions in the AST.
+    /// It is incremented each time a new expression is created.
     current_expr_id: u32
 }
 
@@ -142,7 +145,20 @@ impl<'a> Parser<'a> {
             }
             
             match self.peek().token_type {
-                TokenType::FunctionKeyword | TokenType::ImportKeyword => {
+                TokenType::FunctionKeyword |
+                TokenType::ImportKeyword | 
+                TokenType::StructKeyword |
+                TokenType::TypeKeyword |
+                TokenType::LetKeyword |
+                TokenType::ConstKeyword |
+                TokenType::LoopKeyword |
+                TokenType::IfKeyword |
+                TokenType::ElseKeyword |
+                TokenType::ReturnKeyword |
+                TokenType::BreakKeyword |
+                TokenType::ContinueKeyword |
+                TokenType::OpenCurlyBracket
+                => {
                     break; // Stop at the next function or import keyword
                 },
                 _ => {}
@@ -196,8 +212,7 @@ impl<'a> Parser<'a> {
     }
 
     fn expect(&mut self, token_type: TokenType, message: &str) -> Result<(), ParseError> {
-        if self.is_match(token_type.clone()) {
-            self.advance(); // Consume the expected token
+        if self.advance_if(token_type.clone()) {
             Ok(())
         } else {
             Err(ParseError::UnexpectedToken {
@@ -231,24 +246,33 @@ impl<'a> Parser<'a> {
     }
 
     pub(crate) fn parse_declaration(&mut self) -> Result<Declaration, ParseError> {
-        if self.is_match(TokenType::FunctionKeyword) {
-            self.advance(); // Consume 'function'
+        if let Some(decl) = self.try_parse_declaration()? {
+            Ok(decl)
+        } else {
+            Err(ParseError::UnexpectedToken {
+                expected: None,
+                found: self.peek().clone(),
+                message: Some("Expected a function, struct, type, or import declaration".to_string())
+            })
+        }
+    }
+
+    fn try_parse_declaration(&mut self) -> Result<Option<Declaration>, ParseError> {
+        if self.advance_if(TokenType::FunctionKeyword) {
             let name = self.expect_identifier()?;
+            // TODO: Parse generics
             let params = self.parse_function_parameters()?;
             self.expect(TokenType::Arrow, "Expected arrow after function parameters for type")?; // Expect an arrow after the parameters
             let return_type = self.parse_type()?;
             let body = self.parse_block()?;
-            Ok(Declaration::Function { name, params, return_type, body: Box::new(body) })
-        } else if self.is_match(TokenType::ImportKeyword) {
-            self.advance(); // Consume 'import'
-
+            Ok(Some(Declaration::Function { name, params, return_type, generic_args: vec![], body: Box::new(body) }))
+        } else if self.advance_if(TokenType::ImportKeyword) {
             let mut path = vec![
                 self.expect_identifier()? // Expect the first part of the path
             ];
 
             while !self.is_eof() {
-                if self.is_match(TokenType::Dot) {
-                    self.advance(); // Consume the dot
+                if self.advance_if(TokenType::Dot) {
                     path.push(self.expect_identifier()?); // Expect the next part of the path
                 } else {
                     break; // No more parts of the path
@@ -257,14 +281,41 @@ impl<'a> Parser<'a> {
 
             self.expect(TokenType::Semicolon, "Expected semicolon after import path")?; // Expect a semicolon
 
-            Ok(Declaration::Import { path })
+            Ok(Some(Declaration::Import { path }))
+        } else if self.advance_if(TokenType::StructKeyword) {
+            let name = self.expect_identifier()?;
+            // TODO: Parse generics
+            self.expect(TokenType::OpenCurlyBracket, "Expected open brace after struct name")?;
+            let mut declarations = Vec::new();
+            while !self.is_eof() && self.peek().token_type != TokenType::CloseCurlyBracket {
+                let decl = self.parse_struct_element()?;
+                declarations.push(decl);
+            }
+            self.expect(TokenType::CloseCurlyBracket, "Unmatched open brace")?;
+            Ok(Some(Declaration::Struct { name, elements: declarations, generic_args: vec![] }))
+        } else if self.advance_if(TokenType::TypeKeyword) {
+            let name = self.expect_identifier()?;
+            // TODO: Parse generics
+            self.expect(TokenType::AssignmentOperator, "Expected assignment operator after type name")?; // Expect an assignment operator
+            let alias = self.parse_type()?;
+            self.expect(TokenType::Semicolon, "Expected semicolon after type declaration")?; // Expect a semicolon
+            Ok(Some(Declaration::TypeDeclaration { name, alias, generic_args: vec![] }))
         } else {
-            Err(ParseError::UnexpectedToken {
-                expected: None,
-                found: self.peek().clone(),
-                message: Some("Expected a function or import declaration".to_string())
-            })
+            Ok(None)
         }
+    }
+
+    fn parse_struct_element(&mut self) -> Result<StructElement, ParseError> {
+        if let Some(decl) = self.try_parse_declaration()? {
+            return Ok(StructElement::Declaration(decl)); // Parse a declaration
+        }
+
+        let name = self.expect_identifier()?;
+        self.expect(TokenType::Colon, "Expected colon after struct field name")?; // Expect a colon after the name
+        let field_type = self.parse_type()?;
+        self.expect(TokenType::Semicolon, "Expected semicolon after struct field declaration")?; // Expect a semicolon
+
+        Ok(StructElement::Field { name, field_type })
     }
 
     fn parse_type(&mut self) -> Result<Type, ParseError> {
@@ -284,13 +335,18 @@ impl<'a> Parser<'a> {
                     "f64" => Ok(Type::F64),
                     "bool" => Ok(Type::Boolean),
                     "char" => Ok(Type::Character),
-                    // TODO: Handle vector types
-                    _ => Err(ParseError::UnexpectedToken {
-                        expected: Some(TokenType::Identifier(name.clone())),
-                        found: self.peek().clone(),
-                        message: Some(format!("Unknown type: {}", name))
-                    })
+                    _ => {
+                        // TODO: Parse generics
+                        Ok(Type::Identifier { name: name.clone(), generic_args: vec![] })
+                    }
                 }
+            },
+            TokenType::OpenSquareBracket => {
+                // Arrays
+                self.advance();
+                let element_type = self.parse_type()?;
+                self.expect(TokenType::CloseSquareBracket, "Unmatched open square bracket")?;
+                Ok(Type::Array(Box::new(element_type)))
             },
             _ => Err(ParseError::UnexpectedToken {
                 expected: Some(TokenType::Identifier("".to_string())),
@@ -301,7 +357,7 @@ impl<'a> Parser<'a> {
     }
 
     pub(crate) fn parse_block(&mut self) -> Result<Expression, ParseError> {
-        self.expect(TokenType::OpenCurlyBracket, "Expected open brace")?; // Expect an open brace
+        self.expect(TokenType::OpenCurlyBracket, "Expected open brace")?;
         let mut statements = Vec::new();
         while !self.is_eof() && self.peek().token_type != TokenType::CloseCurlyBracket {
             let stmt = match self.parse_statement() {
@@ -322,11 +378,15 @@ impl<'a> Parser<'a> {
                 break;
             }
         }
-        self.expect(TokenType::CloseCurlyBracket, "Unmatched open brace")?; // Expect a close brace
+        self.expect(TokenType::CloseCurlyBracket, "Unmatched open brace")?;
         Ok(Expression::Block(statements))
     }
 
     pub(crate) fn parse_statement(&mut self) -> Result<Statement, ParseError> {
+        if let Some(decl) = self.try_parse_declaration()? {
+            return Ok(Statement::Declaration(decl)); // Parse a declaration
+        }
+
         match self.peek().token_type.clone() {
             // Easy single-keyword statements
             TokenType::BreakKeyword => {
@@ -410,7 +470,7 @@ impl<'a> Parser<'a> {
                     let iterable = Box::new(self.parse_expression()?);
                     self.expect(TokenType::CloseParenthesis, "Unmatched open parentheses")?; // Expect a close parenthesis
                     let body = Box::new(self.parse_block()?);
-                    return Ok(Expression::Loop(LoopStatement::Iterator {
+                    return Ok(Expression::Loop(LoopType::Iterator {
                         body,
                         mutability,
                         iterator,
@@ -422,14 +482,14 @@ impl<'a> Parser<'a> {
 
                 self.expect(TokenType::CloseParenthesis, "Unmatched open parentheses")?; // Expect a close parenthesis
                 let body = Box::new(self.parse_block()?);
-                return Ok(Expression::Loop(LoopStatement::While {
+                return Ok(Expression::Loop(LoopType::While {
                     condition,
                     body
                 }));
             } else {
                 // Otherwise, this is an infinite loop
                 let body = Box::new(self.parse_block()?);
-                return Ok(Expression::Loop(LoopStatement::Infinite {
+                return Ok(Expression::Loop(LoopType::Infinite {
                     body
                 }));
             }
@@ -458,7 +518,84 @@ impl<'a> Parser<'a> {
             });
         }
 
-        self.parse_equality_or_lower()
+        if self.advance_if(TokenType::OpenSquareBracket) {
+            // Array creation
+            let element_type = self.parse_type()?;
+            self.expect(TokenType::Comma, "Expected comma after array type")?;
+            let size = Box::new(self.parse_expression()?);
+            self.expect(TokenType::CloseSquareBracket, "Unmatched open square bracket")?;
+            self.expect(TokenType::OpenCurlyBracket, "Expected open brace after array size")?;
+            let initial_value = Box::new(self.parse_expression()?);
+            self.expect(TokenType::CloseCurlyBracket, "Unmatched open brace")?;
+
+            return Ok(Expression::Array {
+                array_type: element_type,
+                size,
+                initial_value
+            });
+        }
+
+        if self.advance_if(TokenType::NewKeyword) {
+            // Struct creation
+            let struct_type = self.parse_type()?;
+            self.expect(TokenType::OpenCurlyBracket, "Expected open brace after struct name")?;
+            let mut elements = Vec::new();
+            while !self.is_eof() && self.peek().token_type != TokenType::CloseCurlyBracket {
+                let name = self.expect_identifier()?;
+                self.expect(TokenType::Colon, "Expected colon after struct field name")?; // Expect a colon after the name
+                let value = Box::new(self.parse_expression()?);
+                elements.push((name, value)); // Store the field name and value
+                if !self.advance_if(TokenType::Comma) {
+                    break; // No more fields
+                }
+            }
+            self.expect(TokenType::CloseCurlyBracket, "Unmatched open brace")?;
+            return Ok(Expression::StructCreation {
+                struct_type,
+                fields: elements
+            });
+        }
+
+        self.parse_assignment_or_lower()
+    }
+
+    fn parse_assignment_or_lower(&mut self) -> Result<Expression, ParseError> {
+        // Assignment is right-associative, so we recursively parse instead of looping.
+        let expr = self.parse_logical_or_or_lower()?;
+        if self.advance_if(TokenType::AssignmentOperator) {
+            let value = Box::new(self.parse_logical_or_or_lower()?); // Parse the right-hand side
+            // TODO: member access assignment
+            if let Expression::Variable { name, expression_id } = expr {
+                return Ok(Expression::Assignment {
+                    name,
+                    value,
+                    expression_id
+                });
+            } else {
+                return Err(ParseError::UnexpectedToken {
+                    expected: Some(TokenType::Identifier("".to_string())),
+                    found: self.peek().clone(),
+                    message: Some("Expected an identifier for assignment".to_string())
+                });
+            }
+        }
+        Ok(expr)
+    }
+
+    fn parse_logical_or_or_lower(&mut self) -> Result<Expression, ParseError> {
+        parse_precedence_binary!(
+            self,
+            parse_logical_and_or_lower,
+            (TokenType::OrOperator, BinaryOperator::Or)
+        )
+    }
+
+    fn parse_logical_and_or_lower(&mut self) -> Result<Expression, ParseError> {
+        parse_precedence_binary!(
+            self,
+            parse_equality_or_lower,
+            (TokenType::AndOperator, BinaryOperator::And)
+        )
     }
 
     fn parse_equality_or_lower(&mut self) -> Result<Expression, ParseError> {
@@ -474,10 +611,10 @@ impl<'a> Parser<'a> {
         parse_precedence_binary!(
             self,
             parse_term_or_lower,
-            (TokenType::OpenAngleBracket, BinaryOperator::Add),
-            (TokenType::CloseAngleBracket, BinaryOperator::Subtract),
-            (TokenType::LessThanEqualOperator, BinaryOperator::Multiply),
-            (TokenType::GreaterThanEqualOperator, BinaryOperator::Divide),
+            (TokenType::OpenAngleBracket, BinaryOperator::LessThan),
+            (TokenType::CloseAngleBracket, BinaryOperator::GreaterThan),
+            (TokenType::LessThanEqualOperator, BinaryOperator::LessThanOrEqual),
+            (TokenType::GreaterThanEqualOperator, BinaryOperator::GreaterThanOrEqual)
         )
     }
 
@@ -512,6 +649,7 @@ impl<'a> Parser<'a> {
     fn parse_call_or_lower(&mut self) -> Result<Expression, ParseError> {
         let mut expr = self.parse_primary_or_lower()?;
 
+        // TODO: Array access and assignment
         while !self.is_eof() {
             if self.advance_if(TokenType::OpenParenthesis) {
                 expr = self.parse_function_call_after_paren(expr)?; // Parse function call

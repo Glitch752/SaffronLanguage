@@ -1,0 +1,14 @@
+func test(x: i32) -> [[bool]] {
+    struct Struct {
+        x: f64;
+        y: f64;
+    }
+
+    const arr: [[bool]] = [[bool], x + 5] { false };
+    // arr[0] = [bool, _] { true, false, true };
+    // arr[1] = [bool, _] { true, true };
+
+    const structArray: [Struct] = [Struct, x + 5] { new Struct { x: 5, y: 6 } };
+
+    return arr;
+}

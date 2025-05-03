@@ -1,0 +1,29 @@
+import std.io.stdout;
+import std;
+
+func makeMultipleChecker(multipleOf: i32) -> func i32 -> bool {
+    return func(i: i32) -> bool {
+        return i % multipleOf == 0;
+    };
+}
+
+func main() -> i32 {
+    func fizzBuzz(i: i32) -> nil {
+        const fizz = makeMultipleChecker(3);
+        const buzz = makeMultipleChecker(5);
+        
+        if(fizz(i) && buzz(i)) {
+            stdout.println("FizzBuzz");
+        } else if(fizz(i)) {
+            stdout.println("Fizz");
+        } else if(buzz(i)) {
+            stdout.println("Buzz");
+        } else {
+            stdout.println(std.toString(i));
+        }
+    }
+
+    loop(const i : std.range(1, 100)) {
+        fizzBuzz(i);
+    }
+}
