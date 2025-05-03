@@ -1,4 +1,4 @@
-use ast::{BinaryOperator, Declaration, Expression, FunctionParameter, LoopStatement, Program, Statement, Type, UnaryOperator, VariableMutability};
+use ast::{BinaryOperator, Declaration, Expression, ExpressionId, FunctionParameter, LoopStatement, Program, Statement, Type, UnaryOperator, VariableMutability};
 
 use crate::tokenizer::{Token, TokenType};
 
@@ -36,7 +36,8 @@ impl std::fmt::Display for ParseError {
 pub struct Parser<'a> {
     tokens: &'a [Token],
     current: usize,
-    errors: Vec<ParseError>
+    errors: Vec<ParseError>,
+    current_expr_id: u32
 }
 
 macro_rules! parse_precedence_binary {
@@ -95,8 +96,14 @@ impl<'a> Parser<'a> {
         Parser {
             tokens,
             current: 0,
-            errors: Vec::new()
+            errors: Vec::new(),
+            current_expr_id: 0
         }
+    }
+
+    pub fn get_id(&mut self) -> ExpressionId {
+        self.current_expr_id += 1;
+        return ExpressionId(self.current_expr_id);
     }
 
     fn is_eof(&self) -> bool {
@@ -566,7 +573,7 @@ impl<'a> Parser<'a> {
 
             TokenType::Identifier(ref name) => {
                 self.advance(); // Consume the identifier
-                Ok(Expression::Variable(name.clone()))
+                Ok(Expression::Variable { name: name.clone(), expression_id: self.get_id() })
             },
 
             TokenType::OpenParenthesis => {

@@ -74,7 +74,7 @@ impl ASTPrinter {
 
     fn print_expression(&mut self, expression: &Expression) -> String {
         match expression {
-            Expression::Assignment { variable, value } => {
+            Expression::Assignment { variable, value, .. } => {
                 let mut output = fmt_indent!(self, "Assignment:\n");
                 self.indent += 1;
                 output.push_str(&fmt_indent!(self, "Variable: {}\n", variable));
@@ -135,7 +135,7 @@ impl ASTPrinter {
                 self.indent -= 1;
                 output
             },
-            Expression::Variable(name) => {
+            Expression::Variable { name, .. } => {
                 fmt_indent!(self, "Variable: {}\n", name)
             },
             Expression::If { condition, then_branch, else_branch } => {
@@ -255,8 +255,16 @@ impl ASTPrinter {
             Type::U16 => "U16".to_string(),
             Type::U32 => "U32".to_string(),
             Type::U64 => "U64".to_string(),
-            Type::Vector(t) => format!("Vector<{}>", self.print_type(t)),
             Type::Nil => "Nil".to_string(),
+            Type::Identifier { name, generic_args } => {
+                let mut output = name.clone();
+                if !generic_args.is_empty() {
+                    output.push('<');
+                    output.push_str(&generic_args.iter().map(|arg| self.print_type(arg)).collect::<Vec<_>>().join(", "));
+                    output.push('>');
+                }
+                output
+            }
         }
     }
 }

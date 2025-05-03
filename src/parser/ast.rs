@@ -1,3 +1,5 @@
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct ExpressionId(pub u32);
 
 #[derive(Debug, PartialEq)]
 pub enum Expression {
@@ -6,7 +8,10 @@ pub enum Expression {
     NumberLiteral(f64),
     StringLiteral(String),
     CharLiteral(char),
-    Variable(String),
+    Variable {
+        name: String,
+        expression_id: ExpressionId
+    },
     BooleanLiteral(bool),
 
     FunctionCall {
@@ -26,7 +31,8 @@ pub enum Expression {
     
     Assignment {
         variable: String,
-        value: Box<Expression>
+        value: Box<Expression>,
+        expression_id: ExpressionId
     },
     MemberAccess {
         object: Box<Expression>,
@@ -143,6 +149,11 @@ pub enum Declaration {
         return_type: Type,
         body: Box<Expression>
     },
+    // Struct {
+    //     name: String,
+    //     declarations: Vec<Box<Declaration>>,
+
+    // },
     Import {
         path: Vec<String>
     }
@@ -161,7 +172,12 @@ pub enum Type {
     F32, F64,
     Boolean,
     Character,
-    Vector(Box<Type>), // Strings are vectors of characters
+    Identifier {
+        name: String,
+        generic_args: Vec<Type> // Generic arguments for the type
+    },
+    /// Nil is the return type for functions that don't return a value.
+    /// Nil can only have the value of `nil` (which, itself, is only valid for the type Nil), and is invalid in other contexts.
     Nil
 }
 

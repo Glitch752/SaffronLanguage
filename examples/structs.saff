@@ -1,0 +1,74 @@
+
+// Implicit import std.strs.String;
+
+import std.io.stdout;
+import std;
+
+const myString: String = "";
+
+struct MappableArray<T> {
+    import std.io;
+
+    // type Default = Self<f64>;
+
+    arr: Vec<T>;
+    
+    // inherit arr.push as push;
+    // inherit arr iterator;
+
+    // Syntactic sugar for:
+    func push(self: Self, value: T) {
+        self.arr.push(value);
+    }
+
+    func create() {
+        MappableArray<T> {
+            arr: Vec<T>.create()
+        }
+    }
+    
+    func map<Out>(mappable: Self, apply: func T -> Out) -> MappableArray<Out> {
+        const newArray: Vec<Out> = Vec<Out>.new();
+        loop(const element : mappable.arr) {
+            newArray.push(apply(element));
+        }
+        newArray
+    }
+}
+
+// MappableArray.Default.create();
+
+const arr = MappableArray<f64>.create();
+const mapped = arr.map<i32>(func(i) {
+    std.floatToInt(i)
+});
+
+// type SynthFunction<T> = func T -> T;
+// type FloatSynthFunction = SynthFunction<f64>;
+
+struct Synth {
+    userFunction: FloatSynthFunction;
+
+    func create(userFunction: FloatSynthFunction) {
+        Synth {
+            userFunction
+        }
+    }
+
+    func setUserSynthesisFunction(synth: Self, userFunction: FloatSynthFunction) -> nil {
+        synth.userFunction = userFunction;
+    }
+}
+
+func main() -> i32 {
+    loop(const i : std.range(1, 100)) {
+        if(i % 15 == 0) stdout.println("FizzBuzz");
+        else if(i % 3 == 0) {
+            stdout.println("Fizz");
+        } else if(i % 5 == 0) {
+            stdout.println("Buzz");
+        } else {
+            stdout.println(std.toString(i));
+        }
+    }
+}

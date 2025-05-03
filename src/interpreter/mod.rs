@@ -1,8 +1,11 @@
+use std::collections::HashMap;
+
 use value::Value;
 
-use crate::parser::ast::{BinaryOperator, Declaration, Expression, LoopStatement, Program, Statement, Type, UnaryOperator};
+use crate::parser::ast::{BinaryOperator, Declaration, Expression, ExpressionId, LoopStatement, Program, Statement, Type, UnaryOperator};
 
 mod value;
+mod resolver;
 
 #[derive(Debug, PartialEq)]
 pub enum InterpreterControl {
@@ -24,13 +27,20 @@ macro_rules! runtime_error {
 }
 
 pub struct Interpreter {
+    locals: HashMap<ExpressionId, usize>
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Interpreter {
+            locals: HashMap::new()
         }
     }
+
+    pub fn resolve(&mut self, expr_id: ExpressionId, depth: usize) {
+        self.locals.insert(expr_id, depth);
+    }
+
     pub fn run(&mut self, program: &Program) -> InterpreterResult<()> {
         // Initialize the interpreter state
 
@@ -108,7 +118,7 @@ impl Interpreter {
             Expression::FunctionCall { callee, args } => {
                 // TODO
                 // TEMPORARY
-                if let Expression::Variable(name) = callee.as_ref() {
+                if let Expression::Variable { name, .. } = callee.as_ref() {
                     if name == "print" {
                         for arg in args {
                             let value = self.interpret_expression(arg)?;
@@ -123,8 +133,10 @@ impl Interpreter {
             },
 
             Expression::BinaryOperation { left, operator, right } => {
+                // TODO: Short-circuit evaluation for logical operators
                 let left_value = self.interpret_expression(left)?;
                 let right_value = self.interpret_expression(right)?;
+                
                 match (operator, left_value, right_value) {
                     (BinaryOperator::Add, Value::Number(l), Value::Number(r)) => {
                         Ok(Value::Number(l + r))
