@@ -1,0 +1,25 @@
+{
+  "name": "saffron-language",
+  "displayName": "Saffron Language",
+  "description": "Saffron Language syntax highlighting.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "saffron",
+      "aliases": ["Saffron", "saffron"],
+      "extensions": [".saff"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "saffron",
+      "scopeName": "source.saffron",
+      "path": "./syntaxes/saffron.tmLanguage.json"
+    }]
+  }
+}
