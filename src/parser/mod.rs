@@ -257,15 +257,53 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_generic_args(&mut self) -> Result<Vec<String>, ParseError> {
+        if self.advance_if(TokenType::OpenAngleBracket) {
+            let mut args = Vec::new();
+            while !self.is_eof() && self.peek().token_type != TokenType::CloseAngleBracket {
+                let arg = self.expect_identifier()?;
+                args.push(arg);
+                if self.is_match(TokenType::Comma) {
+                    self.advance(); // Consume the comma
+                } else {
+                    break; // No more arguments
+                }
+            }
+            self.expect(TokenType::CloseAngleBracket, "Unmatched open angle bracket")?; // Expect a close angle bracket
+            Ok(args)
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    fn parse_generics(&mut self) -> Result<Vec<Type>, ParseError> {
+        if self.advance_if(TokenType::OpenAngleBracket) {
+            let mut generics = Vec::new();
+            while !self.is_eof() && self.peek().token_type != TokenType::CloseAngleBracket {
+                let generic = self.parse_type()?;
+                generics.push(generic);
+                if self.is_match(TokenType::Comma) {
+                    self.advance(); // Consume the comma
+                } else {
+                    break; // No more generics
+                }
+            }
+            self.expect(TokenType::CloseAngleBracket, "Unmatched open angle bracket")?; // Expect a close angle bracket
+            Ok(generics)
+        } else {
+            Ok(vec![])
+        }
+    }
+
     fn try_parse_declaration(&mut self) -> Result<Option<Declaration>, ParseError> {
         if self.advance_if(TokenType::FunctionKeyword) {
             let name = self.expect_identifier()?;
-            // TODO: Parse generics
+            let generic_args = self.parse_generic_args()?;
             let params = self.parse_function_parameters()?;
-            self.expect(TokenType::Arrow, "Expected arrow after function parameters for type")?; // Expect an arrow after the parameters
+            self.expect(TokenType::Arrow, "Expected arrow after function parameters for type")?;
             let return_type = self.parse_type()?;
             let body = self.parse_block()?;
-            Ok(Some(Declaration::Function { name, params, return_type, generic_args: vec![], body: Box::new(body) }))
+            Ok(Some(Declaration::Function { name, params, return_type, generic_args, body: Box::new(body) }))
         } else if self.advance_if(TokenType::ImportKeyword) {
             let mut path = vec![
                 self.expect_identifier()? // Expect the first part of the path
@@ -284,7 +322,7 @@ impl<'a> Parser<'a> {
             Ok(Some(Declaration::Import { path }))
         } else if self.advance_if(TokenType::StructKeyword) {
             let name = self.expect_identifier()?;
-            // TODO: Parse generics
+            let generic_args = self.parse_generic_args()?;
             self.expect(TokenType::OpenCurlyBracket, "Expected open brace after struct name")?;
             let mut declarations = Vec::new();
             while !self.is_eof() && self.peek().token_type != TokenType::CloseCurlyBracket {
@@ -292,14 +330,14 @@ impl<'a> Parser<'a> {
                 declarations.push(decl);
             }
             self.expect(TokenType::CloseCurlyBracket, "Unmatched open brace")?;
-            Ok(Some(Declaration::Struct { name, elements: declarations, generic_args: vec![] }))
+            Ok(Some(Declaration::Struct { name, elements: declarations, generic_args }))
         } else if self.advance_if(TokenType::TypeKeyword) {
             let name = self.expect_identifier()?;
-            // TODO: Parse generics
+            let generic_args = self.parse_generic_args()?;
             self.expect(TokenType::AssignmentOperator, "Expected assignment operator after type name")?; // Expect an assignment operator
             let alias = self.parse_type()?;
             self.expect(TokenType::Semicolon, "Expected semicolon after type declaration")?; // Expect a semicolon
-            Ok(Some(Declaration::TypeDeclaration { name, alias, generic_args: vec![] }))
+            Ok(Some(Declaration::TypeDeclaration { name, alias, generic_args }))
         } else {
             Ok(None)
         }
@@ -336,8 +374,10 @@ impl<'a> Parser<'a> {
                     "bool" => Ok(Type::Boolean),
                     "char" => Ok(Type::Character),
                     _ => {
-                        // TODO: Parse generics
-                        Ok(Type::Identifier { name: name.clone(), generic_args: vec![] })
+                        // Custom types (structs, enums, etc.)
+                        // We can't use parse_generic_args because it expects identifiers, while we need types.
+                        let generics = self.parse_generics()?;
+                        Ok(Type::Identifier { name: name.clone(), generics })
                     }
                 }
             },

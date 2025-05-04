@@ -200,7 +200,7 @@ pub enum Type {
     Character,
     Identifier {
         name: String,
-        generic_args: Vec<Type> // Generic arguments for the type
+        generics: Vec<Type> // Generic arguments for the type
     },
     Function {
         params: Vec<Type>,

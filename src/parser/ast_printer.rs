@@ -314,7 +314,7 @@ impl ASTPrinter {
             Type::U32 => "U32".to_string(),
             Type::U64 => "U64".to_string(),
             Type::Nil => "Nil".to_string(),
-            Type::Identifier { name, generic_args } => {
+            Type::Identifier { name, generics: generic_args } => {
                 let mut output = name.clone();
                 if !generic_args.is_empty() {
                     output.push('<');
