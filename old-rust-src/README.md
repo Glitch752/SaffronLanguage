@@ -1,3 +1,1 @@
-# Saffron Language
-
-A programming language because.
+# Old rust version

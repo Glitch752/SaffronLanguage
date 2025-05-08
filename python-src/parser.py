@@ -1,9 +1,20 @@
-from ast.expression import BlockNode, BoolLiteral, ExpressionNode, FloatLiteral, IdentifierNode, IfNode, IntLiteral
-from ast.staterment import FunctionDeclaration, ReturnNode, VariableDeclaration
+from ast.expression import BlockNode, BoolLiteral, ExpressionNode, FloatLiteral, InfiniteLoopNode, IteratorLoopNode, VariableAccessNode, IfNode, IntLiteral, WhileLoopNode
+from ast.statement import FunctionDeclaration, ReturnNode, StatementNode, VariableDeclaration
 from .lexer import Token, Lexemes
+from .visitor import Visitor
+
+class ParserException(Exception):
+    message: str
+    token: Token
+    
+    def __init__(self, token: Token | None, message: str) -> None:
+        super().__init__(message)
+        self.token = token
+        self.message = message
 
 class AstNode:
-    def visit(self, visitor):
+    def visit(self, visitor: Visitor):
+        # Should be implemented by subclasses
         print("TODO: Implement me")
         pass
 
@@ -11,7 +22,7 @@ class ProgramNode(AstNode):
     def __init__(self):
         self.statements: list[AstNode] = []
         
-    def visit(self, visitor):
+    def visit(self, visitor: Visitor):
         return visitor.visit_program(self)
 
 class Parser:
@@ -20,12 +31,44 @@ class Parser:
         self.current: int = 0
 
         self.errors = []
+        
+    def peek(self) -> Token | None:
+        return self.tokens[self.current] if self.current + 1 <= len(self.tokens) else None
 
-        self.error_message = "error"
+    def consume(self) -> Token:
+        if self.current <= len(self.tokens) - 1:
+            tok: Token = self.tokens[self.current]
+            self.current += 1
+            return tok
+        raise ParserException(self.peek(), "Unexpected end of file")
+    
+    def expect(self, token_type: str) -> Token:
+        if self.current <= len(self.tokens) - 1:
+            if self.peek().token_type == token_type:
+                return self.consume()
+            else:
+                raise ParserException(self.peek(), f"Expected {token_type}, but got {self.peek().token_type}")
+        
+        raise ParserException(self.peek(), f"Expected {token_type}, but got EOF")
+    
+    def expect_identifier(self) -> str:
+        if self.current <= len(self.tokens) - 1:
+            if self.peek().token_type == Lexemes.IDENTIFIER:
+                return self.consume().value
+            else:
+                raise ParserException(self.peek(), f"Expected identifier, but got {self.peek().token_type}")
+
+        raise ParserException(self.peek(), "Expected identifier, but got EOF")
+    
+    def advance_if(self, token_type: str):
+        if self.peek().token_type == token_type:
+            return self.consume()
+        
+        raise ParserException(self.peek(), f"Unexpected end of file")
         
     def synchronize_to_statement(self):
         while self.current < len(self.tokens) - 1:
-            tok: Token = self.tokens[self.current]
+            tok: Token = self.peek()
             
             if tok.token_type in [Lexemes.SEMICOLON, Lexemes.CLOSECURLYBRACKET]:
                 self.consume()
@@ -34,45 +77,41 @@ class Parser:
                 return
             
             self.current += 1
-            
 
-    def parse(self):
+    def parse(self) -> ProgramNode:
         program: ProgramNode = ProgramNode()
 
         while (self.current < len(self.tokens) - 1):
-            s = self.parse_statement()
-
-            if s == None:
+            try:
+                s = self.parse_statement()
+            except ParserException as e:
                 self.errors.append(self.error_message)
                 self.synchronize_to_statement()
                 continue
 
             program.statements.append(s)
-            
-            self.consume()
+            self.expect(Lexemes.SEMICOLON)
 
         return program
+    
+    def parse_declaration(self) -> StatementNode:
+        tok: Token = self.peek()
 
-    def parse_statement(self):
-        tok: Token = self.tokens[self.current]
-            
         if tok.token_type == Lexemes.CONST or tok.token_type == Lexemes.LET:
             return self.parse_variable_declaration()
         elif tok.token_type == Lexemes.FUNC:
             return self.parse_function_declaration()
-        elif tok.token_type == Lexemes.IF:
-            if not self.expect(Lexemes.OPENPARENTHESIS):
-                self.error_message = "error: missing '(' in variable declaration"
-                return None
-            self.consume()
-            if_node: IfNode = IfNode()
-            if_node.condition = self.parse_expression()
-            if not self.expect(Lexemes.CLOSEPARENTHESIS):
-                self.error_message = "error: missing ')' in variable declaration"
-                return None
-            self.consume()
-            if_node.then_branch = self.parse_expression()
-            return if_node
+        else:
+            return self.parse_statement()
+        
+    def parse_statement(self) -> StatementNode:
+        tok: Token = self.peek()
+            
+        if tok.token_type == Lexemes.BREAK:
+            # TODO: Breaking with values
+            return self.consume() # consume break
+        elif tok.token_type == Lexemes.CONTINUE:
+            return self.consume()
         elif tok.token_type == Lexemes.IMPORT:
             self.consume() # consume import
             e = self.parse_expression()
@@ -88,39 +127,27 @@ class Parser:
             return node
         else:
             e = self.parse_expression()
-            
-            if e:
-                e.is_result = self.tokens[self.current].token_type != Lexemes.SEMICOLON # is this a result?
+            e.is_result = self.peek().token_type != Lexemes.SEMICOLON # is this a result?
 
             return e
 
-    def parse_function_declaration(self):
+    def parse_function_declaration(self) -> FunctionDeclaration:
         node: FunctionDeclaration = FunctionDeclaration()
 
         if n := self.expect(Lexemes.IDENTIFIER):
             node.name = n.value
-
-            if not self.expect(Lexemes.OPENPARENTHESIS):
-                self.error_message = "error: missing '(' in function declaration"
-                return None
+            self.expect(Lexemes.OPENPARENTHESIS)
             
             while self.current < len(self.tokens) - 1:
-                tok: Token = self.tokens[self.current]
+                tok: Token = self.peek()
                 
                 if tok.token_type == Lexemes.IDENTIFIER:
                     v: VariableDeclaration = VariableDeclaration()
-                    
                     v.is_const = True
                     v.name = tok.value
-                    
-                    if not self.expect(Lexemes.COLON):
-                        self.error_message = "error: missing ':' in function params"
-                        return None
-                    
+                    self.expect(Lexemes.COLON)
                     v.variable_type = self.consume().value
-
                     v.expression = ExpressionNode()
-
                     node.params.append(v)
 
                 if tok.token_type == Lexemes.CLOSEPARENTHESIS:
@@ -128,56 +155,76 @@ class Parser:
             
                 self.current += 1
 
-            if not self.expect(Lexemes.ARROW):
-                self.error_message = "error: missing '->' in function delcaration"
-                return None
-            
+            self.expect(Lexemes.ARROW)
             node.return_type = self.expect(Lexemes.IDENTIFIER)
-
-            if not node.return_type:
-                self.error_message = "error: missing return type"
-            
             self.consume()
-
             node.expression = self.parse_expression()
         
             return node
 
-        self.error_message = "error: missing identifier"
-        return None
+        raise ParserException(self.peek(), "Missing function name in function declaration")
 
     def parse_variable_declaration(self):
         node: VariableDeclaration = VariableDeclaration()
-
-        node.is_const = self.tokens[self.current].token_type == Lexemes.CONST
+        node.is_const = self.peek().token_type == Lexemes.CONST
 
         if n := self.expect(Lexemes.IDENTIFIER):
             node.name = n.value
 
-            if not self.expect(Lexemes.COLON):
-                self.error_message = "error: missing ':' in variable declaration"
-                return None
-            
+            self.expect(Lexemes.COLON)
             if ty := self.expect(Lexemes.IDENTIFIER):
                 node.variable_type = ty.value
-
-                if not self.expect(Lexemes.ASSIGNMENT):
-                    self.error_message = "error: missing '=' in variable declaration"
-
+                self.expect(Lexemes.ASSIGNMENT)
                 self.consume()
-
                 node.expression = self.parse_expression()
 
                 return node
 
-        self.error_message = "error: missing identifier"
-        return None
+        raise ParserException(self.peek(), "Missing identifier in variable declaration")
 
     def parse_expression(self):
-        if self.tokens[self.current].token_type == Lexemes.OPENCURLYBRACKET:
+        if self.peek().token_type == Lexemes.OPENCURLYBRACKET:
             return self.parse_block()
         
+        if self.advance_if(Lexemes.IF):
+            return self.parse_if()
+        if self.advance_if(Lexemes.LOOP):
+            return self.parse_loop()
+        
         return self.parse_primary_or_lower()
+    
+    def parse_if(self):
+        self.expect(Lexemes.OPENPARENTHESIS)
+        self.consume()
+        if_node: IfNode = IfNode()
+        if_node.condition = self.parse_expression()
+        self.expect(Lexemes.CLOSEPARENTHESIS)
+        self.consume()
+        if_node.then_branch = self.parse_expression()
+        return if_node
+    
+    def parse_loop(self):
+        self.expect(Lexemes.OPENPARENTHESIS)
+        
+        if self.peek() in [Lexemes.CONST, Lexemes.LET]:
+            # Iterator loop
+            is_const = self.consume() == Lexemes.CONST
+            iterator = self.expect_identifier()
+            self.expect(Lexemes.COLON)
+            iterable = self.parse_expression()
+            self.expect(Lexemes.CLOSEPARENTHESIS)
+            body = self.parse_statement()
+            return IteratorLoopNode(iterator, iterable, body, is_const)
+        elif self.advance_if(Lexemes.CLOSEPARENTHESIS):
+            # Infinite loop
+            body = self.parse_statement()
+            return InfiniteLoopNode(body)
+        else:
+            # While loop
+            condition = self.parse_expression()
+            self.expect(Lexemes.CLOSEPARENTHESIS)
+            body = self.parse_statement()
+            return WhileLoopNode(condition, body)
 
     def parse_assignment_or_lower(self):
         pass
@@ -195,12 +242,12 @@ class Parser:
         pass
 
     def parse_primary_or_lower(self):
-        match self.tokens[self.current].token_type:
+        match self.peek().token_type:
             case Lexemes.INTLITERAL:
-                node = IntLiteral(int(self.tokens[self.current].value))
+                node = IntLiteral(int(self.peek().value))
                 return node
             case Lexemes.FLOATLITERAL:
-                node = FloatLiteral(float(self.tokens[self.current].value))
+                node = FloatLiteral(float(self.peek().value))
                 return node
             case Lexemes.TRUE:
                 node = BoolLiteral(True)
@@ -209,7 +256,7 @@ class Parser:
                 node = BoolLiteral(False)
                 return node
             case Lexemes.IDENTIFIER:
-                node = IdentifierNode(self.tokens[self.current].value)
+                node = VariableAccessNode(self.peek().value)
                 return node
 
     def parse_block(self):
@@ -217,29 +264,13 @@ class Parser:
 
         node: BlockNode = BlockNode()
 
-        tok: Token = self.tokens[self.current]
+        tok: Token = self.peek()
 
         while tok and tok.token_type != Lexemes.CLOSECURLYBRACKET:
             node.statements.append(self.parse_statement())
             tok: Token = self.consume()
 
         return node
-
-    def consume(self):
-        self.current += 1
-
-        if self.current <= len(self.tokens) - 1: return self.tokens[self.current]
-
-        return None
-    
-    def expect(self, token_type: str):
-        self.current += 1
-
-        if self.current <= len(self.tokens) - 1:
-            if self.tokens[self.current].token_type == token_type:
-                return self.tokens[self.current]
-        
-        return None
 
 def pretty_print(program):
     for statement in program.statements:

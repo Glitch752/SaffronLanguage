@@ -1,9 +1,19 @@
 from ast.expression import ExpressionNode
 from parser import AstNode
+from visitor import Visitor
 
 class StatementNode(AstNode):
     def __init__(self):
         pass
+    def visit(self, visitor: Visitor):
+        return visitor.visit_statement(self)
+    
+class ExpressionStatement(StatementNode):
+    def __init__(self, expression: ExpressionNode):
+        self.expression: ExpressionNode = expression
+    
+    def pretty(self, tab):
+        return f"Expr Statement:\n{'| '*tab}Expr: {self.expression.pretty(tab+1) if self.expression else 'none'}"
 
 class ReturnNode(StatementNode):
     def __init__(self):

@@ -1,4 +1,5 @@
 from parser import AstNode
+from visitor import Visitor
 
 class ExpressionNode(AstNode):
     def __init__(self):
@@ -7,7 +8,7 @@ class ExpressionNode(AstNode):
     def pretty(self, tab):
         return ""
     
-    def visit(self, visitor):
+    def visit(self, visitor: Visitor):
         return visitor.visit_expression(self)
 
 class BinaryExpression(ExpressionNode):
@@ -51,7 +52,7 @@ class StringLiteral(ExpressionNode):
     def pretty(self, tab):
         return "{ " + f"String Literal: {self.value}" + " }"
 
-class IdentifierNode(ExpressionNode):
+class VariableAccessNode(ExpressionNode):
     def __init__(self, name):
         self.name: str = name
     
@@ -68,9 +69,29 @@ class IfNode(ExpressionNode):
         return f"If Node:\n{'| '*tab}Condition: {self.condition.pretty(tab + 1)}\n{'| '*tab}Then: {self.then_branch.pretty(tab + 1)}\n{'| '*tab}Else: {self.else_branch.pretty(tab+1) if self.else_branch else 'none'}"
 
 class LoopNode(ExpressionNode):
-    def __init__(self):
-        self.loop_condition: ExpressionNode = None
-        self.branch: ExpressionNode = None
+    body: ExpressionNode
+    def __init__(self, body: ExpressionNode):
+        self.body = body
+        
+class IteratorLoopNode(LoopNode):
+    is_const: bool
+    iterator: str
+    iterable: ExpressionNode
+    def __init__(self, is_const: bool, iterator: str, iterable: ExpressionNode, body: ExpressionNode):
+        super().__init__(body)
+        self.is_const = is_const
+        self.iterator = iterator
+        self.iterable = iterable
+        
+class WhileLoopNode(LoopNode):
+    condition: ExpressionNode
+    def __init__(self, condition: ExpressionNode, body: ExpressionNode):
+        super().__init__(body)
+        self.condition = condition
+
+class InfiniteLoopNode(LoopNode):
+    def __init__(self, body: ExpressionNode):
+        super().__init__(body)
 
 class BlockNode(ExpressionNode):
     def __init__(self):
